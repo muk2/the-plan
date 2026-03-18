@@ -1,8 +1,24 @@
+import { useEffect, useRef } from "react";
 import { COLORS } from "../theme";
 
 export default function Modal({ title, onClose, children, width = 520 }) {
+  const contentRef = useRef(null);
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKey);
+    // Focus the modal content on open for keyboard users
+    if (contentRef.current) contentRef.current.focus();
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
       onClick={onClose}
       style={{
         position: "fixed", inset: 0,
@@ -14,6 +30,8 @@ export default function Modal({ title, onClose, children, width = 520 }) {
       }}
     >
       <div
+        ref={contentRef}
+        tabIndex={-1}
         onClick={e => e.stopPropagation()}
         style={{
           background: COLORS.surface,
@@ -25,12 +43,14 @@ export default function Modal({ title, onClose, children, width = 520 }) {
           maxHeight: "85vh",
           overflowY: "auto",
           animation: "slideUp 0.2s ease",
+          outline: "none",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: COLORS.text }}>{title}</h2>
           <button
             onClick={onClose}
+            aria-label="Close dialog"
             style={{
               background: COLORS.surface2, border: "none", borderRadius: 6,
               color: COLORS.textDim, cursor: "pointer", width: 32, height: 32,

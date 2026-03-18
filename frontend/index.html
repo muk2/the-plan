@@ -11,6 +11,28 @@
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body { background: #0d0d0f; }
+      /* Visible focus ring for keyboard navigation */
+      :focus-visible {
+        outline: 2px solid #e8c547;
+        outline-offset: 2px;
+      }
+      /* Skip link for keyboard users */
+      .skip-link {
+        position: absolute;
+        top: -40px;
+        left: 0;
+        background: #e8c547;
+        color: #0d0d0f;
+        padding: 8px 16px;
+        z-index: 10000;
+        font-weight: 700;
+        text-decoration: none;
+        border-radius: 0 0 6px 0;
+        transition: top 0.15s;
+      }
+      .skip-link:focus {
+        top: 0;
+      }
     </style>
   </head>
   <body>

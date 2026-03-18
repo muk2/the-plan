@@ -7,7 +7,12 @@ export default function ScheduleRow({ item, typeMeta }) {
   const meta = typeMeta[item.category_name] || typeMeta[item.type] || { color: "#555", label: item.category_name || item.type };
   return (
     <div
+      role={item.note ? "button" : undefined}
+      tabIndex={item.note ? 0 : undefined}
+      aria-expanded={item.note ? open : undefined}
+      aria-label={`${item.time_range || item.time} ${item.label}${item.note ? (open ? ", collapse" : ", expand for details") : ""}`}
       onClick={() => item.note && setOpen(o => !o)}
+      onKeyDown={e => { if (item.note && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setOpen(o => !o); } }}
       style={{
         borderLeft: `3px solid ${meta.color}`,
         background: open ? "#1e1e22" : "#16161a",
@@ -16,6 +21,7 @@ export default function ScheduleRow({ item, typeMeta }) {
         cursor: item.note ? "pointer" : "default",
         transition: "background 0.15s",
         overflow: "hidden",
+        outline: "none",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 14px" }}>
