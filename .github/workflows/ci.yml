@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build & Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            backend/target
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: rust-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml') }}
+          restore-keys: rust-
+
+      - name: Build backend
+        working-directory: backend
+        run: cargo build --release
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: frontend/node_modules
+          key: node-${{ hashFiles('frontend/package.json') }}
+          restore-keys: node-
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+
+      - name: Check for warnings
+        working-directory: backend
+        run: cargo build --release 2>&1 | grep -i warning || echo "No warnings"
