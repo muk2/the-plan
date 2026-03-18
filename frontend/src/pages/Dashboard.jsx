@@ -75,6 +75,8 @@ export default function Dashboard() {
   const [autoSleep, setAutoSleep] = useState("22:00");
   const [autoWorkStart, setAutoWorkStart] = useState("09:00");
   const [autoWorkEnd, setAutoWorkEnd] = useState("17:00");
+  const [autoPreview, setAutoPreview] = useState(null); // { blocks: { 0: [...], 1: [...], ... } }
+  const [autoPreviewDay, setAutoPreviewDay] = useState(0);
 
   useEffect(() => {
     loadAll();
@@ -255,12 +257,13 @@ export default function Dashboard() {
       name: c.name, label: c.label, color: c.color, enabled: false,
       hours_per_week: 2, preferred_time: "evening",
     })));
+    setAutoPreview(null);
     setShowAutoSchedule(true);
   };
 
-  const generateAutoSchedule = async () => {
+  const buildAutoScheduleBlocks = () => {
     const active = autoActivities.filter(a => a.enabled);
-    if (active.length === 0) return alert("Select at least one activity");
+    if (active.length === 0) return null;
 
     const parseTime = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + (m || 0); };
     const formatTime = (mins) => { const h = Math.floor(mins / 60); const m = mins % 60; return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`; };
@@ -270,19 +273,17 @@ export default function Dashboard() {
     const workStart = parseTime(autoWorkStart);
     const workEnd = parseTime(autoWorkEnd);
 
-    // Distribute activities across the week
+    const allBlocks = {};
     for (let day = 0; day < 7; day++) {
       const blocks = [];
       let cursor = wake;
 
-      // Morning routine
       blocks.push({ time_range: `${formatTime(cursor)}\u2013${formatTime(cursor + 30)}`, label: "Wake + Morning", category_name: "routine", note: "" });
       cursor += 30;
 
       const isWeekday = day < 5;
 
       if (isWeekday) {
-        // Pre-work activities
         const morningSlot = workStart - cursor;
         if (morningSlot >= 60) {
           const morningActivities = active.filter(a => a.preferred_time === "morning" || a.preferred_time === "any");
@@ -293,15 +294,12 @@ export default function Dashboard() {
             cursor += dur;
           }
         }
-        // Transition to work
         if (cursor < workStart) {
           blocks.push({ time_range: `${formatTime(cursor)}\u2013${formatTime(workStart)}`, label: "Breakfast + Prep", category_name: "routine", note: "" });
         }
-        // Work
         blocks.push({ time_range: `${formatTime(workStart)}\u2013${formatTime(workEnd)}`, label: "Work", category_name: "work", note: "" });
         cursor = workEnd;
 
-        // Evening activities
         blocks.push({ time_range: `${formatTime(cursor)}\u2013${formatTime(cursor + 30)}`, label: "Dinner", category_name: "routine", note: "" });
         cursor += 30;
 
@@ -315,31 +313,47 @@ export default function Dashboard() {
           }
         }
       } else {
-        // Weekend - more flexible
         const weekendActivities = active.filter(a => a.enabled);
         let actIdx = day === 5 ? 0 : Math.floor(active.length / 2);
         for (let slot = 0; slot < 3 && actIdx < weekendActivities.length; slot++) {
           const act = weekendActivities[actIdx % weekendActivities.length];
           const dur = 90;
           blocks.push({ time_range: `${formatTime(cursor)}\u2013${formatTime(cursor + dur)}`, label: act.label, category_name: act.name, note: "" });
-          cursor += dur + 30; // 30 min break
+          cursor += dur + 30;
           actIdx++;
         }
       }
 
-      // Wind down + sleep
       if (cursor < sleep) {
         blocks.push({ time_range: `${formatTime(Math.max(cursor, sleep - 60))}\u2013${formatTime(sleep)}`, label: "Wind Down", category_name: "free", note: "" });
       }
       blocks.push({ time_range: formatTime(sleep), label: "Sleep", category_name: "sleep", note: "" });
 
+      allBlocks[day] = blocks;
+    }
+    return allBlocks;
+  };
+
+  const previewAutoSchedule = () => {
+    const active = autoActivities.filter(a => a.enabled);
+    if (active.length === 0) return alert("Select at least one activity");
+    const blocks = buildAutoScheduleBlocks();
+    if (blocks) {
+      setAutoPreview(blocks);
+      setAutoPreviewDay(0);
+    }
+  };
+
+  const applyAutoSchedule = async () => {
+    if (!autoPreview) return;
+    for (let day = 0; day < 7; day++) {
       try {
-        await api.schedules.putDay({ day_of_week: day, blocks });
+        await api.schedules.putDay({ day_of_week: day, blocks: autoPreview[day] });
       } catch (e) { console.error(e); }
     }
-
     const fresh = await api.schedules.list();
     setSchedules(fresh);
+    setAutoPreview(null);
     setShowAutoSchedule(false);
   };
 
@@ -851,10 +865,48 @@ export default function Dashboard() {
               )}
             </div>
           ))}
-          <div style={{ color: "#e8c54788", fontSize: 11, marginTop: 12, marginBottom: 16 }}>
-            This will replace your entire current schedule for all 7 days.
-          </div>
-          <button onClick={generateAutoSchedule} style={{ ...S.btn, width: "100%", textAlign: "center" }}>Generate Schedule</button>
+          {/* Preview section */}
+          {autoPreview ? (
+            <div style={{ marginTop: 16 }}>
+              <div style={S.sectionHeader}>Preview</div>
+              <div style={{ display: "flex", gap: 2, marginBottom: 12 }}>
+                {DAY_NAMES.map((d, i) => (
+                  <button key={i} onClick={() => setAutoPreviewDay(i)} style={{
+                    background: autoPreviewDay === i ? COLORS.accent : COLORS.surface2,
+                    color: autoPreviewDay === i ? COLORS.bg : COLORS.textDim,
+                    border: "none", borderRadius: 6, padding: "6px 12px",
+                    fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                  }}>{d}</button>
+                ))}
+              </div>
+              <div style={{ maxHeight: 200, overflowY: "auto", marginBottom: 12 }}>
+                {(autoPreview[autoPreviewDay] || []).map((block, i) => {
+                  const meta = typeMeta[block.category_name] || { color: "#555", label: block.category_name };
+                  return (
+                    <div key={i} style={{
+                      display: "flex", gap: 10, alignItems: "center",
+                      padding: "6px 10px", marginBottom: 2,
+                      borderLeft: `3px solid ${meta.color}`,
+                      background: COLORS.surface2, borderRadius: "0 6px 6px 0",
+                    }}>
+                      <span style={{ color: COLORS.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, minWidth: 90 }}>{block.time_range}</span>
+                      <span style={{ color: COLORS.text, fontSize: 12, flex: 1 }}>{block.label}</span>
+                      <span style={{ color: meta.color, fontSize: 10, fontWeight: 600 }}>{meta.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ color: "#e8c54788", fontSize: 11, marginBottom: 12 }}>
+                This will replace your entire current schedule for all 7 days.
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setAutoPreview(null)} style={{ ...S.btnSecondary, flex: 1, textAlign: "center" }}>Back to Edit</button>
+                <button onClick={applyAutoSchedule} style={{ ...S.btn, flex: 1, textAlign: "center" }}>Apply Schedule</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={previewAutoSchedule} style={{ ...S.btn, width: "100%", textAlign: "center", marginTop: 16 }}>Preview Schedule</button>
+          )}
         </Modal>
       )}
     </div>
