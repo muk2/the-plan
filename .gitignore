@@ -29,3 +29,6 @@ Thumbs.db
 
 # Env
 .env
+
+# GitHub Actions self-hosted runner
+.github-runner/
