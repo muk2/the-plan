@@ -44,6 +44,9 @@ pub async fn create_progression(
     AuthUser(user_id): AuthUser,
     Json(input): Json<ProgressionInput>,
 ) -> Result<Json<ProgressionWithPhases>, (StatusCode, String)> {
+    let mut tx = pool.begin().await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     let prog = sqlx::query_as::<_, Progression>(
         "INSERT INTO progressions (user_id, name, label, emoji, color, current_level) VALUES (?, ?, ?, ?, ?, ?) RETURNING *"
     )
@@ -53,7 +56,7 @@ pub async fn create_progression(
     .bind(&input.emoji)
     .bind(&input.color)
     .bind(&input.current_level)
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -71,11 +74,14 @@ pub async fn create_progression(
         .bind(phase.resources.as_ref().map(|r| serde_json::to_string(r).unwrap_or_default()))
         .bind(&phase.milestone)
         .bind(i as i64)
-        .fetch_one(&pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
         phases.push(p);
     }
+
+    tx.commit().await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(ProgressionWithPhases { progression: prog, phases }))
 }
@@ -92,14 +98,17 @@ pub async fn update_progression(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or((StatusCode::NOT_FOUND, "Progression not found".into()))?;
 
+    let mut tx = pool.begin().await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     sqlx::query("UPDATE progressions SET name = ?, label = ?, emoji = ?, color = ?, current_level = ? WHERE id = ?")
         .bind(&input.name).bind(&input.label).bind(&input.emoji).bind(&input.color).bind(&input.current_level)
         .bind(existing.id)
-        .execute(&pool).await
+        .execute(&mut *tx).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     sqlx::query("DELETE FROM progression_phases WHERE progression_id = ?")
-        .bind(existing.id).execute(&pool).await
+        .bind(existing.id).execute(&mut *tx).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let mut phases = Vec::new();
@@ -114,10 +123,13 @@ pub async fn update_progression(
         .bind(phase.resources.as_ref().map(|r| serde_json::to_string(r).unwrap_or_default()))
         .bind(&phase.milestone)
         .bind(i as i64)
-        .fetch_one(&pool).await
+        .fetch_one(&mut *tx).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
         phases.push(p);
     }
+
+    tx.commit().await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let prog = sqlx::query_as::<_, Progression>("SELECT * FROM progressions WHERE id = ?")
         .bind(existing.id).fetch_one(&pool).await
