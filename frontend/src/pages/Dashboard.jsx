@@ -632,6 +632,51 @@ export default function Dashboard() {
             {budgetItems.length > 0 ? (
               <>
                 <BudgetBar items={budgetItems} />
+
+                {/* Budget vs Actual comparison */}
+                {progressLogs.length > 0 && (
+                  <div style={{ ...S.card, marginTop: 20 }}>
+                    <div style={S.sectionHeader}>Budget vs. Actual (This Week)</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {budgetItems.map((b, i) => {
+                        // Match budget label to category label or name
+                        const matchKey = b.label.toLowerCase();
+                        const actual = progressLogs
+                          .filter(l => {
+                            const meta = typeMeta[l.category_name];
+                            return l.category_name.toLowerCase() === matchKey ||
+                              (meta && meta.label.toLowerCase() === matchKey);
+                          })
+                          .reduce((sum, l) => sum + l.hours, 0);
+                        const pct = b.hours > 0 ? Math.min((actual / b.hours) * 100, 100) : 0;
+                        const over = actual > b.hours;
+                        return (
+                          <div key={i}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                              <span style={{ color: COLORS.text, fontSize: 13, fontWeight: 600 }}>{b.label}</span>
+                              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: over ? "#e55" : COLORS.textDim }}>
+                                {actual.toFixed(1)}h / {b.hours}h
+                                {over && <span style={{ color: "#e55", marginLeft: 4 }}>+{(actual - b.hours).toFixed(1)}h</span>}
+                              </span>
+                            </div>
+                            <div style={{ height: 8, background: COLORS.surface2, borderRadius: 4, overflow: "hidden" }}>
+                              <div style={{
+                                width: `${pct}%`, height: "100%",
+                                background: over ? "#e55" : b.color,
+                                borderRadius: 4,
+                                transition: "width 0.3s ease",
+                              }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ marginTop: 14, color: COLORS.textFaint, fontSize: 11, textAlign: "center" }}>
+                      Comparing this week&apos;s logged hours against your budget targets
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ ...S.card, marginTop: 20 }}>
                   <div style={S.sectionHeader}>Breakdown</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
