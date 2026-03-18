@@ -78,7 +78,7 @@ pub async fn logout(
     if let Some(token) = session::get_token_from_jar(&jar) {
         session::delete_session(&pool, &token).await;
     }
-    (session::remove_session_cookie(jar), StatusCode::OK)
+    (session::remove_session_cookie(jar), StatusCode::NO_CONTENT)
 }
 
 pub async fn me(
