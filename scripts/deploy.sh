@@ -1,16 +1,24 @@
 #!/bin/bash
-# Deploy script — stops the running server, swaps the binary, restarts.
+# Deploy script — copies built artifacts to deploy dir, restarts server.
 # Called by GitHub Actions deploy workflow on the self-hosted runner.
+#
+# The runner builds in its own work directory. This script copies the
+# binary + frontend dist to a fixed deploy location, then starts the
+# server fully detached so the runner cleanup doesn't kill it.
 set -e
 
-PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-PID_FILE="$PROJECT_DIR/.server.pid"
-BINARY="$PROJECT_DIR/backend/target/release/the-plan-backend"
-FRONTEND="$PROJECT_DIR/frontend/dist"
-LOG_DIR="$PROJECT_DIR/logs"
+# Where the runner built everything (current checkout)
+BUILD_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Fixed deploy location — outside the runner's work tree
+DEPLOY_DIR="${DEPLOY_DIR:-$HOME/the-plan-deploy}"
+PID_FILE="$DEPLOY_DIR/.server.pid"
+LOG_DIR="$DEPLOY_DIR/logs"
+DATA_DIR="$DEPLOY_DIR/data"
 
 echo "=== Deploying The Plan ==="
-echo "Project: $PROJECT_DIR"
+echo "Build:   $BUILD_DIR"
+echo "Deploy:  $DEPLOY_DIR"
 echo "Time:    $(date)"
 
 # 1. Stop current server
@@ -19,12 +27,10 @@ if [ -f "$PID_FILE" ]; then
   if kill -0 "$PID" 2>/dev/null; then
     echo "Stopping server (PID $PID)..."
     kill "$PID"
-    # Wait for graceful shutdown (up to 10s)
     for i in $(seq 1 10); do
       kill -0 "$PID" 2>/dev/null || break
       sleep 1
     done
-    # Force kill if still alive
     kill -0 "$PID" 2>/dev/null && kill -9 "$PID" 2>/dev/null
     echo "Server stopped."
   else
@@ -32,12 +38,14 @@ if [ -f "$PID_FILE" ]; then
   fi
   rm -f "$PID_FILE"
 else
-  # Try to find and kill any running instance
   pkill -f the-plan-backend 2>/dev/null && echo "Stopped orphan process." || true
   sleep 1
 fi
 
-# 2. Verify binary exists
+# 2. Verify build artifacts exist
+BINARY="$BUILD_DIR/backend/target/release/the-plan-backend"
+FRONTEND="$BUILD_DIR/frontend/dist"
+
 if [ ! -f "$BINARY" ]; then
   echo "ERROR: Binary not found at $BINARY"
   exit 1
@@ -48,25 +56,34 @@ if [ ! -d "$FRONTEND" ]; then
   exit 1
 fi
 
-# 3. Start new server
-mkdir -p "$LOG_DIR" "$PROJECT_DIR/data"
+# 3. Copy artifacts to deploy directory
+mkdir -p "$DEPLOY_DIR/bin" "$DEPLOY_DIR/frontend" "$LOG_DIR" "$DATA_DIR"
 
+echo "Copying binary..."
+cp "$BINARY" "$DEPLOY_DIR/bin/the-plan-backend"
+
+echo "Copying frontend..."
+rm -rf "$DEPLOY_DIR/frontend/dist"
+cp -r "$FRONTEND" "$DEPLOY_DIR/frontend/dist"
+
+# 4. Start server fully detached from runner process group
 echo "Starting server..."
-DATABASE_PATH="$PROJECT_DIR/data/theplan.db" \
-  FRONTEND_DIR="$FRONTEND" \
+setsid bash -c "
+  DATABASE_PATH='$DATA_DIR/theplan.db' \
+  FRONTEND_DIR='$DEPLOY_DIR/frontend/dist' \
   PORT=3000 \
-  nohup "$BINARY" >> "$LOG_DIR/server.log" 2>&1 &
+  nohup '$DEPLOY_DIR/bin/the-plan-backend' >> '$LOG_DIR/server.log' 2>&1 &
+  echo \$! > '$PID_FILE'
+"
 
-echo $! > "$PID_FILE"
 sleep 2
 
-# 4. Health check
-if kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+# 5. Health check
+if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
   echo "=== Deploy successful ==="
   echo "PID: $(cat "$PID_FILE")"
   echo "URL: http://localhost:3000"
 
-  # Try to get Tailscale IP
   if command -v tailscale &>/dev/null; then
     TS_IP=$(tailscale ip -4 2>/dev/null || true)
     [ -n "$TS_IP" ] && echo "Tailscale: http://${TS_IP}:3000"
