@@ -1,16 +1,26 @@
 const BASE = "/api";
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options.headers },
-    ...options,
-  });
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      headers: { "Content-Type": "application/json", ...options.headers },
+      ...options,
+    });
+  } catch {
+    throw new Error("Can't reach server. Check your connection.");
+  }
   if (res.status === 204) return null;
   if (!res.ok) {
-    const text = await res.text();
+    let text;
+    try { text = await res.text(); } catch { text = ""; }
     throw new Error(text || res.statusText);
   }
-  return res.json();
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 // Auth
@@ -28,6 +38,7 @@ export const categories = {
   list: () => request("/categories"),
   upsert: (data) => request("/categories", { method: "POST", body: JSON.stringify(data) }),
   remove: (name) => request(`/categories/${name}`, { method: "DELETE" }),
+  listForUser: (userId) => request(`/users/${userId}/categories`),
 };
 
 // Schedules

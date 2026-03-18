@@ -54,6 +54,10 @@ export default function Dashboard() {
   const [logNote, setLogNote] = useState("");
   const [logDate, setLogDate] = useState(new Date().toISOString().split("T")[0]);
 
+  // Loading & error states
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
   // Schedule editor
   const [editing, setEditing] = useState(false);
   const [editBlocks, setEditBlocks] = useState([]);
@@ -127,12 +131,14 @@ export default function Dashboard() {
   };
 
   const saveSchedule = async () => {
+    setSaving(true); setError("");
     try {
       await api.schedules.putDay({ day_of_week: schedDay, blocks: editBlocks });
       const fresh = await api.schedules.list();
       setSchedules(fresh);
       setEditing(false);
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
   const addBlock = () => {
@@ -152,19 +158,23 @@ export default function Dashboard() {
   const saveCategory = async () => {
     if (!catName || !catLabel) return;
     const slug = catName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    setSaving(true); setError("");
     try {
       await api.categories.upsert({ name: slug, label: catLabel, color: catColor });
       const fresh = await api.categories.list();
       setCategories(fresh);
       setCatName(""); setCatLabel(""); setCatColor("#e8c547");
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
   const deleteCategory = async (name) => {
+    setSaving(true); setError("");
     try {
       await api.categories.remove(name);
       setCategories(categories.filter(c => c.name !== name));
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
   // ── Progression CRUD ──
@@ -194,6 +204,7 @@ export default function Dashboard() {
     if (!progForm.name || !progForm.label) return;
     const slug = progForm.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
     const payload = { ...progForm, name: slug };
+    setSaving(true); setError("");
     try {
       if (editingProg) {
         await api.progressions.update(editingProg.id, payload);
@@ -204,18 +215,21 @@ export default function Dashboard() {
       setProgressions(fresh);
       if (!progTab && fresh.length > 0) setProgTab(fresh[0].name);
       setShowProgressionModal(false);
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
   const deleteProgression = async (id) => {
     if (!confirm("Delete this progression?")) return;
+    setSaving(true); setError("");
     try {
       await api.progressions.remove(id);
       const fresh = await api.progressions.list();
       setProgressions(fresh);
       if (fresh.length > 0) setProgTab(fresh[0].name);
       else setProgTab(null);
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
   const addPhase = () => {
@@ -242,11 +256,13 @@ export default function Dashboard() {
   };
 
   const saveBudget = async () => {
+    setSaving(true); setError("");
     try {
       const result = await api.budget.set(budgetForm.filter(b => b.label && b.hours > 0));
       setBudgetItems(result);
       setShowBudgetModal(false);
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
   // ── Auto Schedule ──
@@ -260,8 +276,9 @@ export default function Dashboard() {
 
   const generateAutoSchedule = async () => {
     const active = autoActivities.filter(a => a.enabled);
-    if (active.length === 0) return alert("Select at least one activity");
+    if (active.length === 0) { setError("Select at least one activity"); return; }
 
+    setSaving(true); setError("");
     const parseTime = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + (m || 0); };
     const formatTime = (mins) => { const h = Math.floor(mins / 60); const m = mins % 60; return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`; };
 
@@ -341,18 +358,21 @@ export default function Dashboard() {
     const fresh = await api.schedules.list();
     setSchedules(fresh);
     setShowAutoSchedule(false);
+    setSaving(false);
   };
 
   // ── Log Progress ──
   const handleLog = async (e) => {
     e.preventDefault();
     if (!logCat || !logHours) return;
+    setSaving(true); setError("");
     try {
       await api.progress.log({ category_name: logCat, hours: parseFloat(logHours), note: logNote || null, date: logDate });
       setLogHours(""); setLogNote("");
       const fresh = await api.progress.list({ range: "week" });
       setProgressLogs(fresh);
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
   // ── AI ──
@@ -405,6 +425,17 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {error && (
+        <div style={{
+          margin: "0 28px", padding: "10px 16px",
+          background: "#e5555522", borderRadius: 8, marginTop: 16,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <span style={{ color: "#e55", fontSize: 13 }}>{error}</span>
+          <button onClick={() => setError("")} style={{ background: "none", border: "none", color: "#e55", cursor: "pointer", fontSize: 16, padding: "2px 6px" }}>{"\u2715"}</button>
+        </div>
+      )}
+
       <div style={{ padding: "24px 28px", maxWidth: 1100 }}>
 
         {/* ═══════════════ SCHEDULE TAB ═══════════════ */}
@@ -441,7 +472,7 @@ export default function Dashboard() {
                 <button onClick={startEditing} style={S.btn}>Edit Day</button>
               ) : (
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={saveSchedule} style={S.btn}>Save</button>
+                  <button onClick={saveSchedule} disabled={saving} style={{ ...S.btn, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : "Save"}</button>
                   <button onClick={() => setEditing(false)} style={S.btnSecondary}>Cancel</button>
                 </div>
               )}
@@ -584,7 +615,7 @@ export default function Dashboard() {
                   <label style={S.label}>Note</label>
                   <input style={{ ...S.input, width: "100%" }} value={logNote} onChange={e => setLogNote(e.target.value)} placeholder="What did you work on?" />
                 </div>
-                <button type="submit" style={S.btn}>Log</button>
+                <button type="submit" disabled={saving} style={{ ...S.btn, opacity: saving ? 0.6 : 1 }}>{saving ? "Logging..." : "Log"}</button>
               </form>
             </div>
 
@@ -723,7 +754,7 @@ export default function Dashboard() {
               <label style={S.label}>Color</label>
               <ColorPicker value={catColor} onChange={setCatColor} />
             </div>
-            <button onClick={saveCategory} style={S.btn}>Add Activity</button>
+            <button onClick={saveCategory} disabled={saving} style={{ ...S.btn, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : "Add Activity"}</button>
           </div>
         </Modal>
       )}
@@ -770,7 +801,7 @@ export default function Dashboard() {
               </div>
             ))}
             <button onClick={addPhase} style={{ ...S.btnSecondary, textAlign: "center" }}>+ Add Phase</button>
-            <button onClick={saveProgression} style={{ ...S.btn, textAlign: "center", marginTop: 8 }}>{editingProg ? "Save Changes" : "Create Progression"}</button>
+            <button onClick={saveProgression} disabled={saving} style={{ ...S.btn, textAlign: "center", marginTop: 8, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : (editingProg ? "Save Changes" : "Create Progression")}</button>
           </div>
         </Modal>
       )}
@@ -798,7 +829,7 @@ export default function Dashboard() {
             </div>
           ))}
           <button onClick={() => setBudgetForm([...budgetForm, { label: "", hours: 0, color: "#888888" }])} style={{ ...S.btnSecondary, width: "100%", textAlign: "center", marginTop: 8, marginBottom: 12 }}>+ Add Category</button>
-          <button onClick={saveBudget} style={{ ...S.btn, width: "100%", textAlign: "center" }}>Save Budget</button>
+          <button onClick={saveBudget} disabled={saving} style={{ ...S.btn, width: "100%", textAlign: "center", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : "Save Budget"}</button>
         </Modal>
       )}
 
@@ -854,7 +885,7 @@ export default function Dashboard() {
           <div style={{ color: "#e8c54788", fontSize: 11, marginTop: 12, marginBottom: 16 }}>
             This will replace your entire current schedule for all 7 days.
           </div>
-          <button onClick={generateAutoSchedule} style={{ ...S.btn, width: "100%", textAlign: "center" }}>Generate Schedule</button>
+          <button onClick={generateAutoSchedule} disabled={saving} style={{ ...S.btn, width: "100%", textAlign: "center", opacity: saving ? 0.6 : 1 }}>{saving ? "Generating..." : "Generate Schedule"}</button>
         </Modal>
       )}
     </div>

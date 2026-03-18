@@ -49,6 +49,7 @@ async fn main() {
         .route("/categories", get(routes::categories::get_categories))
         .route("/categories", post(routes::categories::upsert_category))
         .route("/categories/{name}", delete(routes::categories::delete_category))
+        .route("/users/{id}/categories", get(routes::categories::get_user_categories))
         // Schedules
         .route("/schedules", get(routes::schedules::get_schedules))
         .route("/schedules", put(routes::schedules::put_schedule_day))
