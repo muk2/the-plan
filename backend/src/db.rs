@@ -26,14 +26,19 @@ pub async fn init_pool(db_path: &str) -> SqlitePool {
         .ok();
 
     // Run migrations
-    let migration_sql = include_str!("../migrations/001_init.sql");
-    for statement in migration_sql.split(';') {
-        let trimmed = statement.trim();
-        if !trimmed.is_empty() {
-            sqlx::query(trimmed)
-                .execute(&pool)
-                .await
-                .expect("Failed to run migration");
+    let migrations: &[&str] = &[
+        include_str!("../migrations/001_init.sql"),
+        include_str!("../migrations/003_ai_rate_limit.sql"),
+    ];
+    for migration_sql in migrations {
+        for statement in migration_sql.split(';') {
+            let trimmed = statement.trim();
+            if !trimmed.is_empty() {
+                sqlx::query(trimmed)
+                    .execute(&pool)
+                    .await
+                    .expect("Failed to run migration");
+            }
         }
     }
 

@@ -4,19 +4,56 @@ use sqlx::SqlitePool;
 use crate::models::*;
 use crate::session::AuthUser;
 
+const MAX_PROMPT_LEN: usize = 5000;
+const RATE_LIMIT_PER_HOUR: i64 = 20;
+
 pub async fn analyze(
     State(pool): State<SqlitePool>,
     AuthUser(user_id): AuthUser,
     Json(input): Json<AiAnalyzeRequest>,
 ) -> Result<Json<AiAnalyzeResponse>, (StatusCode, String)> {
+    // Validate prompt length
+    if let Some(ref prompt) = input.prompt {
+        if prompt.len() > MAX_PROMPT_LEN {
+            return Err((StatusCode::BAD_REQUEST, format!("Prompt too long (max {} characters)", MAX_PROMPT_LEN)));
+        }
+    }
+
+    // Rate limiting: check requests in the last hour
+    let recent_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_requests WHERE user_id = ? AND created_at > datetime('now', '-1 hour')"
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
+
+    if recent_count >= RATE_LIMIT_PER_HOUR {
+        return Err((StatusCode::TOO_MANY_REQUESTS, format!("Rate limit exceeded. Max {} AI requests per hour.", RATE_LIMIT_PER_HOUR)));
+    }
+
+    // Log this request for rate limiting
+    sqlx::query("INSERT INTO ai_requests (user_id) VALUES (?)")
+        .bind(user_id)
+        .execute(&pool).await.ok();
+
+    // Clean old entries periodically
+    sqlx::query("DELETE FROM ai_requests WHERE created_at < datetime('now', '-2 hours')")
+        .execute(&pool).await.ok();
+
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
         .bind(user_id)
         .fetch_one(&pool)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let api_key = user.ai_api_key.as_ref()
-        .ok_or((StatusCode::BAD_REQUEST, "No AI API key configured. Go to Profile to add your OpenRouter API key.".into()))?;
+    let encrypted_key = user.ai_api_key.as_ref()
+        .ok_or((StatusCode::BAD_REQUEST, "No AI API key configured. Go to Profile to add your API key.".into()))?;
+
+    // Decrypt the API key
+    let api_key = crate::crypto::decrypt(encrypted_key)
+        .unwrap_or_else(|_| encrypted_key.clone()); // Fall back to raw value for pre-encryption keys
+
     let base_url = user.ai_base_url.as_deref().unwrap_or("https://openrouter.ai/api/v1");
     let model = user.ai_model.as_deref().unwrap_or("anthropic/claude-sonnet-4");
 
