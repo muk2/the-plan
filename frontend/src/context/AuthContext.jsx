@@ -24,7 +24,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    await auth.logout();
+    try { await auth.logout(); } catch { /* session may already be expired */ }
     setUser(null);
   };
 
