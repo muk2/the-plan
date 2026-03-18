@@ -1,0 +1,84 @@
+#!/bin/bash
+# Quick CLI for The Plan server
+# Usage: theplan [start|stop|status|logs|rebuild]
+
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PLIST_NAME="com.theplan.server"
+PLIST_PATH="$HOME/Library/LaunchAgents/${PLIST_NAME}.plist"
+PID_FILE="$PROJECT_DIR/.server.pid"
+
+case "${1:-status}" in
+  start)
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+      echo "Already running (PID $(cat "$PID_FILE"))"
+      exit 0
+    fi
+
+    BINARY="$PROJECT_DIR/backend/target/release/the-plan-backend"
+    if [ ! -f "$BINARY" ]; then
+      echo "Building first..."
+      cd "$PROJECT_DIR" && make build
+    fi
+
+    mkdir -p "$PROJECT_DIR/logs" "$PROJECT_DIR/backend/data"
+    FRONTEND_DIR="$PROJECT_DIR/frontend/dist" \
+      nohup "$BINARY" >> "$PROJECT_DIR/logs/server.log" 2>&1 &
+    echo $! > "$PID_FILE"
+
+    sleep 1
+    if kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+      IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | head -1 | awk '{print $2}')
+      echo "The Plan is running (PID $(cat "$PID_FILE"))"
+      echo "  Local:     http://localhost:3000"
+      echo "  Network:   http://${IP:-your-ip}:3000"
+      echo "  Tailscale: http://$(hostname):3000"
+    else
+      echo "Failed to start. Check logs/server.log"
+      rm -f "$PID_FILE"
+      exit 1
+    fi
+    ;;
+
+  stop)
+    if [ -f "$PID_FILE" ]; then
+      PID=$(cat "$PID_FILE")
+      if kill -0 "$PID" 2>/dev/null; then
+        kill "$PID"
+        echo "Stopped (PID $PID)"
+      else
+        echo "Process not running (stale PID file)"
+      fi
+      rm -f "$PID_FILE"
+    else
+      pkill -f the-plan-backend 2>/dev/null && echo "Stopped" || echo "Not running"
+    fi
+    ;;
+
+  restart)
+    "$0" stop
+    sleep 1
+    "$0" start
+    ;;
+
+  status)
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+      echo "Running (PID $(cat "$PID_FILE"))"
+    else
+      echo "Not running"
+    fi
+    ;;
+
+  logs)
+    tail -f "$PROJECT_DIR/logs/server.log"
+    ;;
+
+  rebuild)
+    "$0" stop
+    cd "$PROJECT_DIR" && make build
+    "$0" start
+    ;;
+
+  *)
+    echo "Usage: theplan [start|stop|restart|status|logs|rebuild]"
+    ;;
+esac
