@@ -68,13 +68,14 @@ cp -r "$FRONTEND" "$DEPLOY_DIR/frontend/dist"
 
 # 4. Start server fully detached from runner process group
 echo "Starting server..."
-setsid bash -c "
-  DATABASE_PATH='$DATA_DIR/theplan.db' \
-  FRONTEND_DIR='$DEPLOY_DIR/frontend/dist' \
+DATABASE_PATH="$DATA_DIR/theplan.db" \
+  FRONTEND_DIR="$DEPLOY_DIR/frontend/dist" \
   PORT=3000 \
-  nohup '$DEPLOY_DIR/bin/the-plan-backend' >> '$LOG_DIR/server.log' 2>&1 &
-  echo \$! > '$PID_FILE'
-"
+  nohup "$DEPLOY_DIR/bin/the-plan-backend" >> "$LOG_DIR/server.log" 2>&1 &
+SERVER_PID=$!
+echo "$SERVER_PID" > "$PID_FILE"
+# Detach so runner cleanup doesn't kill it
+disown "$SERVER_PID" 2>/dev/null || true
 
 sleep 2
 
