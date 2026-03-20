@@ -12,7 +12,8 @@ async function request(path, options = {}) {
   }
   if (res.status === 204) return null;
   if (!res.ok) {
-    const text = await res.text();
+    let text;
+    try { text = await res.text(); } catch { text = ""; }
     throw new Error(text || res.statusText);
   }
   try {
@@ -37,6 +38,7 @@ export const categories = {
   list: () => request("/categories"),
   upsert: (data) => request("/categories", { method: "POST", body: JSON.stringify(data) }),
   remove: (name) => request(`/categories/${name}`, { method: "DELETE" }),
+  listForUser: (userId) => request(`/users/${userId}/categories`),
 };
 
 // Schedules
