@@ -11,24 +11,48 @@ export default function UserView() {
   const { userId } = useParams();
   const navigate = useNavigate();
   const [schedules, setSchedules] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [progressions, setProgressions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("schedule");
   const [schedDay, setSchedDay] = useState(0);
   const [progTab, setProgTab] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api.schedules.listForUser(userId).then(setSchedules).catch(e => setError(e.message));
-    api.progressions.listForUser(userId).then(p => {
-      setProgressions(p);
-      if (p.length > 0) setProgTab(p[0].name);
-    }).catch(() => {});
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [s, c, p] = await Promise.all([
+          api.schedules.listForUser(userId),
+          api.categories.listForUser(userId),
+          api.progressions.listForUser(userId),
+        ]);
+        if (cancelled) return;
+        setSchedules(s);
+        setCategories(c);
+        setProgressions(p);
+        if (p.length > 0) setProgTab(p[0].name);
+        setError("");
+      } catch (e) {
+        if (!cancelled) setError(e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    setLoading(true);
+    load();
+    return () => { cancelled = true; };
   }, [userId]);
 
   const daySchedule = schedules.filter(s => s.day_of_week === schedDay).sort((a, b) => a.sort_order - b.sort_order);
 
-  // Build basic typeMeta from schedule data
+  // Build typeMeta from friend's actual categories
   const typeMeta = {};
+  categories.forEach(c => {
+    typeMeta[c.name] = { color: c.color, label: c.label };
+  });
+  // Fallback for any schedule entries with categories not in the list
   schedules.forEach(s => {
     if (!typeMeta[s.category_name]) typeMeta[s.category_name] = { color: "#555", label: s.category_name };
   });
@@ -47,6 +71,12 @@ export default function UserView() {
         </button>
         <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Friend&apos;s Schedule</h1>
       </div>
+
+      {loading && (
+        <div style={{ color: COLORS.textDim, fontSize: 13, padding: 20, textAlign: "center" }}>
+          Loading...
+        </div>
+      )}
 
       {error && (
         <div style={{ color: "#e55", fontSize: 13, padding: "8px 12px", background: "#e5555522", borderRadius: 6, marginBottom: 16 }}>
