@@ -422,18 +422,18 @@ export default function Dashboard() {
       color: COLORS.text, paddingBottom: 60,
     }}>
       {/* ─── Header ─── */}
-      <div style={{
+      <div className="dashboard-header" style={{
         borderBottom: `1px solid ${COLORS.border}`,
         padding: "20px 28px 0", background: COLORS.surface,
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div className="dashboard-header-inner" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <span style={S.sectionHeader}>The Plan</span>
             <h1 style={{ margin: "2px 0 0", fontSize: 24, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.02em" }}>
               {user?.display_name || user?.username}
             </h1>
           </div>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <div className="dashboard-nav" style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <button onClick={() => navigate("/friends")} style={S.btnSecondary}>Friends</button>
             <button onClick={() => navigate("/leaderboard")} style={S.btnSecondary}>Leaderboard</button>
             <button onClick={() => navigate("/profile")} style={S.btnSecondary}>Profile</button>
@@ -441,7 +441,7 @@ export default function Dashboard() {
           </div>
         </div>
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 2, marginTop: 16 }}>
+        <div className="dashboard-tabs" style={{ display: "flex", gap: 2, marginTop: 16 }}>
           {MAIN_TABS.map(t => (
             <button key={t.id} onClick={() => setMainTab(t.id)} style={{
               background: mainTab === t.id ? COLORS.accent : "transparent",
@@ -450,7 +450,7 @@ export default function Dashboard() {
               padding: "10px 18px", fontSize: 12, fontWeight: 600,
               cursor: "pointer", fontFamily: "inherit",
               transition: "all 0.15s",
-            }}>{t.icon} {t.label}</button>
+            }}>{t.icon} <span className="tab-label">{t.label}</span></button>
           ))}
         </div>
       </div>
@@ -466,13 +466,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div style={{ padding: "24px 28px", maxWidth: 1100 }}>
+      <div className="dashboard-content" style={{ padding: "24px 28px", maxWidth: 1100 }}>
 
         {/* ═══════════════ SCHEDULE TAB ═══════════════ */}
         {mainTab === "schedule" && (
           <div>
             {/* Day selector with indicators */}
-            <div style={{ display: "flex", gap: 4, marginBottom: 20, alignItems: "center" }}>
+            <div className="day-selector" style={{ display: "flex", gap: 4, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
               {DAY_NAMES.map((d, i) => (
                 <button key={i} onClick={() => { setSchedDay(i); setEditing(false); }} style={{
                   background: schedDay === i ? COLORS.accent : COLORS.surface,
@@ -483,7 +483,7 @@ export default function Dashboard() {
                   cursor: "pointer", fontFamily: "inherit",
                   transition: "all 0.15s",
                   display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-                  minWidth: 52,
+                  minWidth: 52, flex: "1 1 0",
                 }}>
                   <span>{d}</span>
                   <div style={{ display: "flex", gap: 2 }}>
@@ -496,16 +496,17 @@ export default function Dashboard() {
                   </div>
                 </button>
               ))}
-              <div style={{ flex: 1 }} />
-              <button onClick={openAutoSchedule} style={{ ...S.btnSecondary, marginRight: 6 }}>Auto-Generate</button>
-              {!editing ? (
-                <button onClick={startEditing} style={S.btn}>Edit Day</button>
-              ) : (
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={saveSchedule} disabled={saving} style={{ ...S.btn, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : "Save"}</button>
-                  <button onClick={() => setEditing(false)} style={S.btnSecondary}>Cancel</button>
-                </div>
-              )}
+              <div className="day-actions" style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                <button onClick={openAutoSchedule} style={S.btnSecondary}>Auto-Generate</button>
+                {!editing ? (
+                  <button onClick={startEditing} style={S.btn}>Edit Day</button>
+                ) : (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={saveSchedule} disabled={saving} style={{ ...S.btn, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : "Save"}</button>
+                    <button onClick={() => setEditing(false)} style={S.btnSecondary}>Cancel</button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {!editing ? (
@@ -555,7 +556,7 @@ export default function Dashboard() {
                 {schedules.length > 0 && (
                   <div style={{ ...S.card, marginTop: 20 }}>
                     <div style={S.sectionHeader}>Weekly Overview</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
+                    <div className="weekly-overview" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
                       {DAY_NAMES.map((d, i) => {
                         const dayBlocks = schedules.filter(s => s.day_of_week === i);
                         return (
@@ -578,7 +579,7 @@ export default function Dashboard() {
               /* Schedule Editor */
               <div>
                 {editBlocks.map((block, idx) => (
-                  <div key={idx} style={{
+                  <div key={idx} className="schedule-editor-row" style={{
                     display: "flex", gap: 8, marginBottom: 6, alignItems: "center",
                     padding: "8px 12px", background: COLORS.surface, borderRadius: 8,
                     border: `1px solid ${COLORS.border}`,
@@ -601,7 +602,7 @@ export default function Dashboard() {
         {/* ═══════════════ PROGRESSIONS TAB ═══════════════ */}
         {mainTab === "progressions" && (
           <div>
-            <div style={{ display: "flex", gap: 4, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+            <div className="progression-tabs" style={{ display: "flex", gap: 4, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
               {progressions.map(p => (
                 <button key={p.name} onClick={() => setProgTab(p.name)} style={{
                   background: progTab === p.name ? `${p.color}22` : "transparent",
@@ -638,7 +639,7 @@ export default function Dashboard() {
         {mainTab === "log" && (
           <div>
             {/* Stats bar */}
-            <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+            <div className="stats-bar" style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
               <div style={{ ...S.card, flex: 1, minWidth: 140, textAlign: "center" }}>
                 <div style={{ color: COLORS.textDim, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>This Week</div>
                 <div style={{ color: COLORS.accent, fontSize: 28, fontWeight: 800, fontFamily: "'IBM Plex Mono', monospace" }}>{weekTotal.toFixed(1)}<span style={{ fontSize: 14, color: COLORS.textDim }}>h</span></div>
@@ -657,7 +658,7 @@ export default function Dashboard() {
             {/* Log form */}
             <div style={{ ...S.card, marginBottom: 24 }}>
               <div style={S.sectionHeader}>Log Hours</div>
-              <form onSubmit={handleLog} style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <form onSubmit={handleLog} className="log-form" style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
                 <div>
                   <label style={S.label}>Category</label>
                   <select style={{ ...S.select, width: 160 }} value={logCat} onChange={e => setLogCat(e.target.value)} required>
@@ -691,7 +692,7 @@ export default function Dashboard() {
               progressLogs.map((log, i) => {
                 const meta = typeMeta[log.category_name] || { color: "#555", label: log.category_name };
                 return (
-                  <div key={log.id || i} style={{
+                  <div key={log.id || i} className="progress-log-row" style={{
                     display: "flex", alignItems: "center", gap: 12,
                     padding: "12px 16px", marginBottom: 4,
                     background: COLORS.surface, borderRadius: 8,
@@ -725,9 +726,54 @@ export default function Dashboard() {
             {budgetItems.length > 0 ? (
               <>
                 <BudgetBar items={budgetItems} />
+
+                {/* Budget vs Actual comparison */}
+                {progressLogs.length > 0 && (
+                  <div style={{ ...S.card, marginTop: 20 }}>
+                    <div style={S.sectionHeader}>Budget vs. Actual (This Week)</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {budgetItems.map((b, i) => {
+                        // Match budget label to category label or name
+                        const matchKey = b.label.toLowerCase();
+                        const actual = progressLogs
+                          .filter(l => {
+                            const meta = typeMeta[l.category_name];
+                            return l.category_name.toLowerCase() === matchKey ||
+                              (meta && meta.label.toLowerCase() === matchKey);
+                          })
+                          .reduce((sum, l) => sum + l.hours, 0);
+                        const pct = b.hours > 0 ? Math.min((actual / b.hours) * 100, 100) : 0;
+                        const over = actual > b.hours;
+                        return (
+                          <div key={i}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                              <span style={{ color: COLORS.text, fontSize: 13, fontWeight: 600 }}>{b.label}</span>
+                              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: over ? "#e55" : COLORS.textDim }}>
+                                {actual.toFixed(1)}h / {b.hours}h
+                                {over && <span style={{ color: "#e55", marginLeft: 4 }}>+{(actual - b.hours).toFixed(1)}h</span>}
+                              </span>
+                            </div>
+                            <div style={{ height: 8, background: COLORS.surface2, borderRadius: 4, overflow: "hidden" }}>
+                              <div style={{
+                                width: `${pct}%`, height: "100%",
+                                background: over ? "#e55" : b.color,
+                                borderRadius: 4,
+                                transition: "width 0.3s ease",
+                              }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ marginTop: 14, color: COLORS.textFaint, fontSize: 11, textAlign: "center" }}>
+                      Comparing this week&apos;s logged hours against your budget targets
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ ...S.card, marginTop: 20 }}>
                   <div style={S.sectionHeader}>Breakdown</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
+                  <div className="budget-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
                     {budgetItems.map((b, i) => (
                       <div key={i} style={{
                         padding: "14px", borderRadius: 8,
@@ -851,7 +897,7 @@ export default function Dashboard() {
                   <span style={{ color: progForm.color, fontWeight: 700, fontSize: 12, fontFamily: "'IBM Plex Mono', monospace" }}>Phase {idx + 1}</span>
                   <button onClick={() => removePhase(idx)} style={{ background: "none", border: "none", color: "#e55", cursor: "pointer", fontSize: 12 }}>{"\u2715"} Remove</button>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+                <div className="phase-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
                   <div><label style={S.label}>Name</label><input style={{ ...S.input, width: "100%" }} value={ph.phase_name} onChange={e => updatePhase(idx, "phase_name", e.target.value)} placeholder="Phase 1" /></div>
                   <div><label style={S.label}>Period</label><input style={{ ...S.input, width: "100%" }} value={ph.period} onChange={e => updatePhase(idx, "period", e.target.value)} placeholder="Now - Aug 2026" /></div>
                   <div><label style={S.label}>Hours/Week</label><input style={{ ...S.input, width: "100%" }} value={ph.hours_per_week} onChange={e => updatePhase(idx, "hours_per_week", e.target.value)} placeholder="90 min/wk" /></div>

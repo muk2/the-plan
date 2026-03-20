@@ -3,6 +3,7 @@ import { COLORS } from "../theme";
 export default function Modal({ title, onClose, children, width = 520 }) {
   return (
     <div
+      className="modal-overlay"
       onClick={onClose}
       style={{
         position: "fixed", inset: 0,
@@ -14,6 +15,7 @@ export default function Modal({ title, onClose, children, width = 520 }) {
       }}
     >
       <div
+        className="modal-content"
         onClick={e => e.stopPropagation()}
         style={{
           background: COLORS.surface,
