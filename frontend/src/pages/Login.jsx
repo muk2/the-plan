@@ -120,7 +120,7 @@ export default function Login() {
           </div>
 
           {error && (
-            <div style={{ color: "#e55", fontSize: 13, marginBottom: 16, padding: "8px 12px", background: "#e5555522", borderRadius: 6 }}>
+            <div role="alert" style={{ color: "#e55", fontSize: 13, marginBottom: 16, padding: "8px 12px", background: "#e5555522", borderRadius: 6 }}>
               {error}
             </div>
           )}

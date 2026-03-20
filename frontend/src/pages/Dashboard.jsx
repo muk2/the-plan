@@ -423,13 +423,13 @@ export default function Dashboard() {
             <button onClick={() => navigate("/friends")} style={S.btnSecondary}>Friends</button>
             <button onClick={() => navigate("/leaderboard")} style={S.btnSecondary}>Leaderboard</button>
             <button onClick={() => navigate("/profile")} style={S.btnSecondary}>Profile</button>
-            <button onClick={() => logout()} style={{ ...S.btnSecondary, color: "#e55", borderColor: "#e5555544" }}>Logout</button>
+            <button aria-label="Log out" onClick={() => logout()} style={{ ...S.btnSecondary, color: "#e55", borderColor: "#e5555544" }}>Logout</button>
           </div>
         </div>
         {/* Tabs */}
-        <div className="dashboard-tabs" style={{ display: "flex", gap: 2, marginTop: 16 }}>
+        <div role="tablist" aria-label="Dashboard sections" className="dashboard-tabs" style={{ display: "flex", gap: 2, marginTop: 16 }}>
           {MAIN_TABS.map(t => (
-            <button key={t.id} onClick={() => setMainTab(t.id)} style={{
+            <button key={t.id} role="tab" aria-selected={mainTab === t.id} aria-controls={`panel-${t.id}`} onClick={() => setMainTab(t.id)} style={{
               background: mainTab === t.id ? COLORS.accent : "transparent",
               color: mainTab === t.id ? COLORS.bg : COLORS.textDim,
               border: "none", borderRadius: "8px 8px 0 0",
@@ -460,7 +460,7 @@ export default function Dashboard() {
             {/* Day selector with indicators */}
             <div className="day-selector" style={{ display: "flex", gap: 4, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
               {DAY_NAMES.map((d, i) => (
-                <button key={i} onClick={() => { setSchedDay(i); setEditing(false); }} style={{
+                <button key={i} aria-label={`${d}, ${dayBlockCounts[i]} blocks`} aria-pressed={schedDay === i} onClick={() => { setSchedDay(i); setEditing(false); }} style={{
                   background: schedDay === i ? COLORS.accent : COLORS.surface,
                   color: schedDay === i ? COLORS.bg : COLORS.text,
                   border: `1px solid ${schedDay === i ? COLORS.accent : COLORS.border}`,
