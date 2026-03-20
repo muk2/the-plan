@@ -1,4 +1,5 @@
 mod auth;
+mod crypto;
 mod db;
 mod models;
 mod routes;
