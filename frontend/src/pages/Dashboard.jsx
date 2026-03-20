@@ -61,6 +61,8 @@ export default function Dashboard() {
   // Schedule editor
   const [editing, setEditing] = useState(false);
   const [editBlocks, setEditBlocks] = useState([]);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAdd, setQuickAdd] = useState({ time_range: "", label: "", category_name: "", note: "" });
 
   // Category form
   const [catName, setCatName] = useState("");
@@ -151,6 +153,22 @@ export default function Dashboard() {
   };
 
   const removeBlock = (idx) => setEditBlocks(editBlocks.filter((_, i) => i !== idx));
+
+  const handleQuickAdd = async () => {
+    if (!quickAdd.time_range || !quickAdd.label) return;
+    const existing = daySchedule.map(s => ({
+      time_range: s.time_range, label: s.label,
+      category_name: s.category_name, note: s.note || "",
+    }));
+    const newBlocks = [...existing, { ...quickAdd, note: quickAdd.note || "" }];
+    try {
+      await api.schedules.putDay({ day_of_week: schedDay, blocks: newBlocks });
+      const fresh = await api.schedules.list();
+      setSchedules(fresh);
+      setQuickAdd({ time_range: "", label: "", category_name: categories.length > 0 ? categories[0].name : "", note: "" });
+      setShowQuickAdd(false);
+    } catch (e) { alert(e.message); }
+  };
 
   // ── Category CRUD ──
   const saveCategory = async () => {
@@ -478,15 +496,47 @@ export default function Dashboard() {
 
             {!editing ? (
               <>
-                {daySchedule.length === 0 ? (
+                {daySchedule.length === 0 && !showQuickAdd ? (
                   <div style={{ ...S.card, textAlign: "center", padding: 40 }}>
                     <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.5 }}>{"\u{1F4C5}"}</div>
                     <div style={{ color: COLORS.textDim, fontSize: 14 }}>No schedule for {DAY_NAMES[schedDay]}.</div>
-                    <div style={{ color: COLORS.textFaint, fontSize: 12, marginTop: 4 }}>Click "Edit Day" to add blocks or "Auto-Generate" for a full schedule.</div>
+                    <div style={{ color: COLORS.textFaint, fontSize: 12, marginTop: 4 }}>
+                      Click{" "}
+                      <button onClick={() => { setShowQuickAdd(true); setQuickAdd(q => ({ ...q, category_name: q.category_name || (categories[0]?.name || "") })); }} style={{ background: "none", border: "none", color: COLORS.accent, cursor: "pointer", fontFamily: "inherit", fontSize: 12, textDecoration: "underline", padding: 0 }}>+ Add Block</button>
+                      {" "}or "Edit Day" or "Auto-Generate" for a full schedule.
+                    </div>
                   </div>
                 ) : (
-                  <div>{daySchedule.map((item, i) => <ScheduleRow key={i} item={item} typeMeta={typeMeta} />)}</div>
+                  <div>
+                    {daySchedule.map((item, i) => <ScheduleRow key={i} item={item} typeMeta={typeMeta} />)}
+                  </div>
                 )}
+
+                {/* Quick-add inline form */}
+                {!showQuickAdd ? (
+                  <button onClick={() => { setShowQuickAdd(true); setQuickAdd(q => ({ ...q, category_name: q.category_name || (categories[0]?.name || "") })); }} style={{
+                    width: "100%", padding: "10px", marginTop: 8,
+                    background: "transparent", border: `1px dashed ${COLORS.border}`,
+                    borderRadius: 8, color: COLORS.textDim, fontSize: 12,
+                    cursor: "pointer", fontFamily: "inherit",
+                    transition: "all 0.15s",
+                  }}>+ Add Block</button>
+                ) : (
+                  <div style={{
+                    display: "flex", gap: 8, marginTop: 8, alignItems: "center",
+                    padding: "10px 12px", background: COLORS.surface,
+                    borderRadius: 8, border: `1px solid ${COLORS.accent}44`,
+                  }}>
+                    <TimeRangeInput value={quickAdd.time_range} onChange={v => setQuickAdd({ ...quickAdd, time_range: v })} />
+                    <input style={{ ...S.input, flex: 1 }} placeholder="Activity name" value={quickAdd.label} onChange={e => setQuickAdd({ ...quickAdd, label: e.target.value })} onKeyDown={e => { if (e.key === "Enter") handleQuickAdd(); }} />
+                    <select style={{ ...S.select, width: 140 }} value={quickAdd.category_name} onChange={e => setQuickAdd({ ...quickAdd, category_name: e.target.value })}>
+                      {categories.map(c => <option key={c.name} value={c.name}>{c.label}</option>)}
+                    </select>
+                    <button onClick={handleQuickAdd} style={{ ...S.btn, padding: "8px 14px" }}>Add</button>
+                    <button onClick={() => setShowQuickAdd(false)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", fontSize: 16, padding: "4px" }}>{"\u2715"}</button>
+                  </div>
+                )}
+
                 {/* Weekly overview mini-grid */}
                 {schedules.length > 0 && (
                   <div style={{ ...S.card, marginTop: 20 }}>
