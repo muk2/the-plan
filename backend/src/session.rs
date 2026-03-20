@@ -25,6 +25,13 @@ pub async fn create_session(pool: &SqlitePool, user_id: i64) -> Result<String, s
 }
 
 pub async fn get_user_id_from_token(pool: &SqlitePool, token: &str) -> Option<i64> {
+    // Opportunistically clean expired sessions (~1% of requests)
+    let r: u8 = rand::thread_rng().r#gen();
+    if r < 3 {
+        sqlx::query("DELETE FROM sessions WHERE expires_at < datetime('now')")
+            .execute(pool).await.ok();
+    }
+
     sqlx::query_scalar::<_, i64>(
         "SELECT user_id FROM sessions WHERE token = ? AND expires_at > datetime('now')"
     )
