@@ -19,6 +19,7 @@ export default function Modal({ title, onClose, children, width = 520 }) {
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      className="modal-overlay"
       onClick={onClose}
       style={{
         position: "fixed", inset: 0,
@@ -32,6 +33,7 @@ export default function Modal({ title, onClose, children, width = 520 }) {
       <div
         ref={contentRef}
         tabIndex={-1}
+        className="modal-content"
         onClick={e => e.stopPropagation()}
         style={{
           background: COLORS.surface,

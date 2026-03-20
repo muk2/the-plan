@@ -1,0 +1,146 @@
+/* Mobile-first responsive overrides */
+
+@media (max-width: 768px) {
+  /* Header */
+  .dashboard-header {
+    padding: 16px 16px 0 !important;
+  }
+  .dashboard-header-inner {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .dashboard-nav {
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+  }
+  .dashboard-nav button {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+  }
+  .dashboard-tabs {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    gap: 0 !important;
+  }
+  .dashboard-tabs button {
+    padding: 8px 12px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+  }
+
+  /* Content area */
+  .dashboard-content {
+    padding: 16px !important;
+  }
+
+  /* Schedule day selector */
+  .day-selector {
+    flex-wrap: wrap !important;
+  }
+  .day-selector button {
+    padding: 8px 10px !important;
+    min-width: 40px !important;
+    font-size: 11px !important;
+  }
+  .day-selector .day-actions {
+    width: 100% !important;
+    display: flex !important;
+    gap: 6px !important;
+    margin-top: 8px !important;
+  }
+
+  /* Schedule editor */
+  .schedule-editor-row {
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+  .schedule-editor-row select {
+    width: 100% !important;
+  }
+
+  /* Quick add form */
+  .quick-add-form {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .quick-add-form .quick-add-actions {
+    display: flex !important;
+    gap: 8px !important;
+    justify-content: flex-end !important;
+  }
+
+  /* Log form */
+  .log-form {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .log-form > div {
+    width: 100% !important;
+  }
+  .log-form select,
+  .log-form input {
+    width: 100% !important;
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    gap: 8px !important;
+  }
+  .stats-bar > div {
+    min-width: 100px !important;
+  }
+
+  /* Weekly overview grid */
+  .weekly-overview {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+
+  /* Budget grid */
+  .budget-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Budget editor row */
+  .budget-editor-row {
+    flex-wrap: wrap !important;
+  }
+
+  /* Progression tabs */
+  .progression-tabs {
+    gap: 4px !important;
+  }
+  .progression-tabs button {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+  }
+
+  /* Progress log row */
+  .progress-log-row {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  /* Modal */
+  .modal-overlay .modal-content {
+    width: calc(100vw - 32px) !important;
+    max-height: 85vh !important;
+    margin: 16px !important;
+  }
+
+  /* Phase editor grid */
+  .phase-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-tabs button .tab-label {
+    display: none;
+  }
+  .weekly-overview {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+  .budget-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
