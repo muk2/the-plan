@@ -19,7 +19,7 @@ async function request(path, options = {}) {
   try {
     return await res.json();
   } catch {
-    return null;
+    throw new Error("Unexpected server response.");
   }
 }
 

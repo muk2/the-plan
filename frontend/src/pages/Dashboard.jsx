@@ -407,7 +407,7 @@ export default function Dashboard() {
             <button onClick={() => navigate("/friends")} style={S.btnSecondary}>Friends</button>
             <button onClick={() => navigate("/leaderboard")} style={S.btnSecondary}>Leaderboard</button>
             <button onClick={() => navigate("/profile")} style={S.btnSecondary}>Profile</button>
-            <button onClick={async () => { await logout(); navigate("/login"); }} style={{ ...S.btnSecondary, color: "#e55", borderColor: "#e5555544" }}>Logout</button>
+            <button onClick={() => logout()} style={{ ...S.btnSecondary, color: "#e55", borderColor: "#e5555544" }}>Logout</button>
           </div>
         </div>
         {/* Tabs */}
