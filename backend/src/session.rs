@@ -26,7 +26,7 @@ pub async fn create_session(pool: &SqlitePool, user_id: i64) -> Result<String, s
 
 pub async fn get_user_id_from_token(pool: &SqlitePool, token: &str) -> Option<i64> {
     sqlx::query_scalar::<_, i64>(
-        "SELECT user_id FROM sessions WHERE token = ? AND expires_at > datetime('now')"
+        "SELECT user_id FROM sessions WHERE token = ? AND expires_at > datetime('now')",
     )
     .bind(token)
     .fetch_optional(pool)
@@ -67,11 +67,16 @@ pub struct AuthUser(pub i64);
 impl FromRequestParts<SqlitePool> for AuthUser {
     type Rejection = StatusCode;
 
-    async fn from_request_parts(parts: &mut Parts, state: &SqlitePool) -> Result<Self, Self::Rejection> {
-        let jar = CookieJar::from_request_parts(parts, state).await
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &SqlitePool,
+    ) -> Result<Self, Self::Rejection> {
+        let jar = CookieJar::from_request_parts(parts, state)
+            .await
             .map_err(|_| StatusCode::UNAUTHORIZED)?;
         let token = get_token_from_jar(&jar).ok_or(StatusCode::UNAUTHORIZED)?;
-        let user_id = get_user_id_from_token(state, &token).await
+        let user_id = get_user_id_from_token(state, &token)
+            .await
             .ok_or(StatusCode::UNAUTHORIZED)?;
         Ok(AuthUser(user_id))
     }

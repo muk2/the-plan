@@ -48,17 +48,35 @@ async fn main() {
         // Categories
         .route("/categories", get(routes::categories::get_categories))
         .route("/categories", post(routes::categories::upsert_category))
-        .route("/categories/{name}", delete(routes::categories::delete_category))
+        .route(
+            "/categories/{name}",
+            delete(routes::categories::delete_category),
+        )
         // Schedules
         .route("/schedules", get(routes::schedules::get_schedules))
         .route("/schedules", put(routes::schedules::put_schedule_day))
-        .route("/users/{id}/schedules", get(routes::schedules::get_user_schedules))
+        .route(
+            "/users/{id}/schedules",
+            get(routes::schedules::get_user_schedules),
+        )
         // Progressions
         .route("/progressions", get(routes::progressions::get_progressions))
-        .route("/progressions", post(routes::progressions::create_progression))
-        .route("/progressions/{id}", put(routes::progressions::update_progression))
-        .route("/progressions/{id}", delete(routes::progressions::delete_progression))
-        .route("/users/{id}/progressions", get(routes::progressions::get_user_progressions))
+        .route(
+            "/progressions",
+            post(routes::progressions::create_progression),
+        )
+        .route(
+            "/progressions/{id}",
+            put(routes::progressions::update_progression),
+        )
+        .route(
+            "/progressions/{id}",
+            delete(routes::progressions::delete_progression),
+        )
+        .route(
+            "/users/{id}/progressions",
+            get(routes::progressions::get_user_progressions),
+        )
         // Progress logging
         .route("/progress", get(routes::progress::get_progress))
         .route("/progress", post(routes::progress::log_progress))
@@ -66,7 +84,10 @@ async fn main() {
         // Friends
         .route("/invite", post(routes::friends::create_invite))
         .route("/invite/{code}", get(routes::friends::get_invite_info))
-        .route("/invite/{code}/accept", post(routes::friends::accept_invite))
+        .route(
+            "/invite/{code}/accept",
+            post(routes::friends::accept_invite),
+        )
         .route("/friends", get(routes::friends::list_friends))
         .route("/friends/{id}", delete(routes::friends::remove_friend))
         // Leaderboard
@@ -78,8 +99,8 @@ async fn main() {
         .route("/budget", put(routes::budget::set_budget));
 
     // Serve frontend static files, fallback to index.html for SPA routing
-    let frontend_dir = std::env::var("FRONTEND_DIR")
-        .unwrap_or_else(|_| "../frontend/dist".to_string());
+    let frontend_dir =
+        std::env::var("FRONTEND_DIR").unwrap_or_else(|_| "../frontend/dist".to_string());
 
     let app = Router::new()
         .nest("/api", api)

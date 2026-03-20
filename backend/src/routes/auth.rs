@@ -1,4 +1,4 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{Json, extract::State, http::StatusCode};
 use axum_extra::extract::cookie::CookieJar;
 use sqlx::SqlitePool;
 
@@ -12,17 +12,23 @@ pub async fn signup(
     Json(input): Json<SignupRequest>,
 ) -> Result<(CookieJar, Json<UserPublic>), (StatusCode, String)> {
     if input.username.len() < 2 || input.username.len() > 32 {
-        return Err((StatusCode::BAD_REQUEST, "Username must be 2-32 characters".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Username must be 2-32 characters".into(),
+        ));
     }
     if input.password.len() < 6 {
-        return Err((StatusCode::BAD_REQUEST, "Password must be at least 6 characters".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Password must be at least 6 characters".into(),
+        ));
     }
 
-    let hash = hash_password(&input.password)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let hash =
+        hash_password(&input.password).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     let result = sqlx::query_as::<_, User>(
-        "INSERT INTO users (username, display_name, password_hash) VALUES (?, ?, ?) RETURNING *"
+        "INSERT INTO users (username, display_name, password_hash) VALUES (?, ?, ?) RETURNING *",
     )
     .bind(&input.username)
     .bind(&input.display_name)
@@ -33,7 +39,10 @@ pub async fn signup(
         if e.to_string().contains("UNIQUE") {
             (StatusCode::CONFLICT, "Username already taken".into())
         } else {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {}", e))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("DB error: {}", e),
+            )
         }
     })?;
 
@@ -56,7 +65,12 @@ pub async fn login(
         .bind(&input.username)
         .fetch_optional(&pool)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {}", e)))?
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("DB error: {}", e),
+            )
+        })?
         .ok_or((StatusCode::UNAUTHORIZED, "Invalid credentials".into()))?;
 
     if !verify_password(&input.password, &user.password_hash) {
@@ -71,10 +85,7 @@ pub async fn login(
     Ok((jar, Json(user.into())))
 }
 
-pub async fn logout(
-    State(pool): State<SqlitePool>,
-    jar: CookieJar,
-) -> (CookieJar, StatusCode) {
+pub async fn logout(State(pool): State<SqlitePool>, jar: CookieJar) -> (CookieJar, StatusCode) {
     if let Some(token) = session::get_token_from_jar(&jar) {
         session::delete_session(&pool, &token).await;
     }
@@ -102,22 +113,33 @@ pub async fn update_profile(
 ) -> Result<Json<UserPublic>, (StatusCode, String)> {
     if let Some(ref name) = input.display_name {
         sqlx::query("UPDATE users SET display_name = ? WHERE id = ?")
-            .bind(name).bind(user_id).execute(&pool).await
+            .bind(name)
+            .bind(user_id)
+            .execute(&pool)
+            .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
     if let Some(ref bio) = input.bio {
         sqlx::query("UPDATE users SET bio = ? WHERE id = ?")
-            .bind(bio).bind(user_id).execute(&pool).await
+            .bind(bio)
+            .bind(user_id)
+            .execute(&pool)
+            .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
     if let Some(ref url) = input.avatar_url {
         sqlx::query("UPDATE users SET avatar_url = ? WHERE id = ?")
-            .bind(url).bind(user_id).execute(&pool).await
+            .bind(url)
+            .bind(user_id)
+            .execute(&pool)
+            .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
 
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
-        .bind(user_id).fetch_one(&pool).await
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(user.into()))
@@ -141,7 +163,9 @@ pub async fn update_ai_settings(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
-        .bind(user_id).fetch_one(&pool).await
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(user.into()))
@@ -165,8 +189,15 @@ async fn seed_default_categories(pool: &SqlitePool, user_id: i64) {
         ("sports", "Sports", "#8a5a2a"),
     ];
     for (name, label, color) in defaults {
-        sqlx::query("INSERT OR IGNORE INTO categories (user_id, name, label, color) VALUES (?, ?, ?, ?)")
-            .bind(user_id).bind(name).bind(label).bind(color)
-            .execute(pool).await.ok();
+        sqlx::query(
+            "INSERT OR IGNORE INTO categories (user_id, name, label, color) VALUES (?, ?, ?, ?)",
+        )
+        .bind(user_id)
+        .bind(name)
+        .bind(label)
+        .bind(color)
+        .execute(pool)
+        .await
+        .ok();
     }
 }

@@ -1,4 +1,8 @@
-use axum::{extract::{Query, State}, http::StatusCode, Json};
+use axum::{
+    Json,
+    extract::{Query, State},
+    http::StatusCode,
+};
 use chrono::Datelike;
 use sqlx::SqlitePool;
 
@@ -15,16 +19,24 @@ pub async fn get_leaderboard(
     AuthUser(user_id): AuthUser,
     Query(query): Query<LeaderboardQuery>,
 ) -> Result<Json<Vec<LeaderboardEntry>>, (StatusCode, String)> {
-    let friendships = sqlx::query_as::<_, Friendship>(
-        "SELECT * FROM friendships WHERE user_a = ? OR user_b = ?"
-    )
-    .bind(user_id).bind(user_id)
-    .fetch_all(&pool).await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let friendships =
+        sqlx::query_as::<_, Friendship>("SELECT * FROM friendships WHERE user_a = ? OR user_b = ?")
+            .bind(user_id)
+            .bind(user_id)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let mut user_ids: Vec<i64> = friendships.iter().map(|f| {
-        if f.user_a == user_id { f.user_b } else { f.user_a }
-    }).collect();
+    let mut user_ids: Vec<i64> = friendships
+        .iter()
+        .map(|f| {
+            if f.user_a == user_id {
+                f.user_b
+            } else {
+                f.user_a
+            }
+        })
+        .collect();
     user_ids.push(user_id);
 
     let (from_date, to_date) = match query.period.as_deref() {
@@ -45,7 +57,8 @@ pub async fn get_leaderboard(
     for uid in &user_ids {
         let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
             .bind(uid)
-            .fetch_one(&pool).await
+            .fetch_one(&pool)
+            .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
         let total: f64 = sqlx::query_scalar::<_, f64>(
@@ -62,9 +75,13 @@ pub async fn get_leaderboard(
         .fetch_all(&pool).await
         .unwrap_or_default();
 
-        let categories: Vec<CategoryHours> = cat_rows.into_iter().map(|(name, hours)| {
-            CategoryHours { category_name: name, hours }
-        }).collect();
+        let categories: Vec<CategoryHours> = cat_rows
+            .into_iter()
+            .map(|(name, hours)| CategoryHours {
+                category_name: name,
+                hours,
+            })
+            .collect();
 
         let streak = calculate_streak(&pool, *uid).await;
 
@@ -78,14 +95,18 @@ pub async fn get_leaderboard(
         });
     }
 
-    entries.sort_by(|a, b| b.total_hours.partial_cmp(&a.total_hours).unwrap_or(std::cmp::Ordering::Equal));
+    entries.sort_by(|a, b| {
+        b.total_hours
+            .partial_cmp(&a.total_hours)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     Ok(Json(entries))
 }
 
 async fn calculate_streak(pool: &SqlitePool, user_id: i64) -> i64 {
     let dates: Vec<String> = sqlx::query_scalar(
-        "SELECT DISTINCT date FROM progress_logs WHERE user_id = ? ORDER BY date DESC LIMIT 365"
+        "SELECT DISTINCT date FROM progress_logs WHERE user_id = ? ORDER BY date DESC LIMIT 365",
     )
     .bind(user_id)
     .fetch_all(pool)

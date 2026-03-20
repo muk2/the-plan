@@ -1,4 +1,8 @@
-use axum::{extract::{Path, State}, http::StatusCode, Json};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+};
 use sqlx::SqlitePool;
 
 use crate::models::*;
@@ -9,7 +13,7 @@ pub async fn get_schedules(
     AuthUser(user_id): AuthUser,
 ) -> Result<Json<Vec<ScheduleBlock>>, StatusCode> {
     let blocks = sqlx::query_as::<_, ScheduleBlock>(
-        "SELECT * FROM schedule_blocks WHERE user_id = ? ORDER BY day_of_week, sort_order"
+        "SELECT * FROM schedule_blocks WHERE user_id = ? ORDER BY day_of_week, sort_order",
     )
     .bind(user_id)
     .fetch_all(&pool)
@@ -48,7 +52,7 @@ pub async fn put_schedule_day(
     }
 
     let blocks = sqlx::query_as::<_, ScheduleBlock>(
-        "SELECT * FROM schedule_blocks WHERE user_id = ? AND day_of_week = ? ORDER BY sort_order"
+        "SELECT * FROM schedule_blocks WHERE user_id = ? AND day_of_week = ? ORDER BY sort_order",
     )
     .bind(user_id)
     .bind(input.day_of_week)
@@ -65,9 +69,14 @@ pub async fn get_user_schedules(
     Path(target_user_id): Path<i64>,
 ) -> Result<Json<Vec<ScheduleBlock>>, (StatusCode, String)> {
     if my_id != target_user_id {
-        let (a, b) = if my_id < target_user_id { (my_id, target_user_id) } else { (target_user_id, my_id) };
+        let (a, b) = if my_id < target_user_id {
+            (my_id, target_user_id)
+        } else {
+            (target_user_id, my_id)
+        };
         let friendship = sqlx::query("SELECT id FROM friendships WHERE user_a = ? AND user_b = ?")
-            .bind(a).bind(b)
+            .bind(a)
+            .bind(b)
             .fetch_optional(&pool)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -78,7 +87,7 @@ pub async fn get_user_schedules(
     }
 
     let blocks = sqlx::query_as::<_, ScheduleBlock>(
-        "SELECT * FROM schedule_blocks WHERE user_id = ? ORDER BY day_of_week, sort_order"
+        "SELECT * FROM schedule_blocks WHERE user_id = ? ORDER BY day_of_week, sort_order",
     )
     .bind(target_user_id)
     .fetch_all(&pool)

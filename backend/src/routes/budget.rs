@@ -1,4 +1,4 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{Json, extract::State, http::StatusCode};
 use sqlx::SqlitePool;
 
 use crate::models::*;
@@ -9,7 +9,7 @@ pub async fn get_budget(
     AuthUser(user_id): AuthUser,
 ) -> Result<Json<Vec<BudgetItem>>, StatusCode> {
     let items = sqlx::query_as::<_, BudgetItem>(
-        "SELECT * FROM budget_items WHERE user_id = ? ORDER BY sort_order"
+        "SELECT * FROM budget_items WHERE user_id = ? ORDER BY sort_order",
     )
     .bind(user_id)
     .fetch_all(&pool)
@@ -45,7 +45,7 @@ pub async fn set_budget(
     }
 
     let result = sqlx::query_as::<_, BudgetItem>(
-        "SELECT * FROM budget_items WHERE user_id = ? ORDER BY sort_order"
+        "SELECT * FROM budget_items WHERE user_id = ? ORDER BY sort_order",
     )
     .bind(user_id)
     .fetch_all(&pool)

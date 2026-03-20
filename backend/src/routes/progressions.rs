@@ -1,4 +1,8 @@
-use axum::{extract::{Path, State}, http::StatusCode, Json};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+};
 use sqlx::SqlitePool;
 
 use crate::models::*;
@@ -16,7 +20,7 @@ pub async fn get_progressions(
     AuthUser(user_id): AuthUser,
 ) -> Result<Json<Vec<ProgressionWithPhases>>, StatusCode> {
     let progs = sqlx::query_as::<_, Progression>(
-        "SELECT * FROM progressions WHERE user_id = ? ORDER BY name"
+        "SELECT * FROM progressions WHERE user_id = ? ORDER BY name",
     )
     .bind(user_id)
     .fetch_all(&pool)
@@ -26,14 +30,17 @@ pub async fn get_progressions(
     let mut result = Vec::new();
     for prog in progs {
         let phases = sqlx::query_as::<_, ProgressionPhase>(
-            "SELECT * FROM progression_phases WHERE progression_id = ? ORDER BY sort_order"
+            "SELECT * FROM progression_phases WHERE progression_id = ? ORDER BY sort_order",
         )
         .bind(prog.id)
         .fetch_all(&pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-        result.push(ProgressionWithPhases { progression: prog, phases });
+        result.push(ProgressionWithPhases {
+            progression: prog,
+            phases,
+        });
     }
 
     Ok(Json(result))
@@ -77,7 +84,10 @@ pub async fn create_progression(
         phases.push(p);
     }
 
-    Ok(Json(ProgressionWithPhases { progression: prog, phases }))
+    Ok(Json(ProgressionWithPhases {
+        progression: prog,
+        phases,
+    }))
 }
 
 pub async fn update_progression(
@@ -86,11 +96,14 @@ pub async fn update_progression(
     Path(prog_id): Path<i64>,
     Json(input): Json<ProgressionInput>,
 ) -> Result<Json<ProgressionWithPhases>, (StatusCode, String)> {
-    let existing = sqlx::query_as::<_, Progression>("SELECT * FROM progressions WHERE id = ? AND user_id = ?")
-        .bind(prog_id).bind(user_id)
-        .fetch_optional(&pool).await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or((StatusCode::NOT_FOUND, "Progression not found".into()))?;
+    let existing =
+        sqlx::query_as::<_, Progression>("SELECT * FROM progressions WHERE id = ? AND user_id = ?")
+            .bind(prog_id)
+            .bind(user_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .ok_or((StatusCode::NOT_FOUND, "Progression not found".into()))?;
 
     sqlx::query("UPDATE progressions SET name = ?, label = ?, emoji = ?, color = ?, current_level = ? WHERE id = ?")
         .bind(&input.name).bind(&input.label).bind(&input.emoji).bind(&input.color).bind(&input.current_level)
@@ -99,7 +112,9 @@ pub async fn update_progression(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     sqlx::query("DELETE FROM progression_phases WHERE progression_id = ?")
-        .bind(existing.id).execute(&pool).await
+        .bind(existing.id)
+        .execute(&pool)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let mut phases = Vec::new();
@@ -120,10 +135,15 @@ pub async fn update_progression(
     }
 
     let prog = sqlx::query_as::<_, Progression>("SELECT * FROM progressions WHERE id = ?")
-        .bind(existing.id).fetch_one(&pool).await
+        .bind(existing.id)
+        .fetch_one(&pool)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(ProgressionWithPhases { progression: prog, phases }))
+    Ok(Json(ProgressionWithPhases {
+        progression: prog,
+        phases,
+    }))
 }
 
 pub async fn delete_progression(
@@ -132,8 +152,10 @@ pub async fn delete_progression(
     Path(prog_id): Path<i64>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let result = sqlx::query("DELETE FROM progressions WHERE id = ? AND user_id = ?")
-        .bind(prog_id).bind(user_id)
-        .execute(&pool).await
+        .bind(prog_id)
+        .bind(user_id)
+        .execute(&pool)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
@@ -149,28 +171,43 @@ pub async fn get_user_progressions(
     Path(target_user_id): Path<i64>,
 ) -> Result<Json<Vec<ProgressionWithPhases>>, (StatusCode, String)> {
     if my_id != target_user_id {
-        let (a, b) = if my_id < target_user_id { (my_id, target_user_id) } else { (target_user_id, my_id) };
+        let (a, b) = if my_id < target_user_id {
+            (my_id, target_user_id)
+        } else {
+            (target_user_id, my_id)
+        };
         let friendship = sqlx::query("SELECT id FROM friendships WHERE user_a = ? AND user_b = ?")
-            .bind(a).bind(b)
-            .fetch_optional(&pool).await
+            .bind(a)
+            .bind(b)
+            .fetch_optional(&pool)
+            .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
         if friendship.is_none() {
             return Err((StatusCode::FORBIDDEN, "Not friends".into()));
         }
     }
 
-    let progs = sqlx::query_as::<_, Progression>("SELECT * FROM progressions WHERE user_id = ? ORDER BY name")
-        .bind(target_user_id).fetch_all(&pool).await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let progs = sqlx::query_as::<_, Progression>(
+        "SELECT * FROM progressions WHERE user_id = ? ORDER BY name",
+    )
+    .bind(target_user_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let mut result = Vec::new();
     for prog in progs {
         let phases = sqlx::query_as::<_, ProgressionPhase>(
-            "SELECT * FROM progression_phases WHERE progression_id = ? ORDER BY sort_order"
+            "SELECT * FROM progression_phases WHERE progression_id = ? ORDER BY sort_order",
         )
-        .bind(prog.id).fetch_all(&pool).await
+        .bind(prog.id)
+        .fetch_all(&pool)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        result.push(ProgressionWithPhases { progression: prog, phases });
+        result.push(ProgressionWithPhases {
+            progression: prog,
+            phases,
+        });
     }
 
     Ok(Json(result))
