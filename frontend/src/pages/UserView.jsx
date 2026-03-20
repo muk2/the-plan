@@ -20,18 +20,29 @@ export default function UserView() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setLoading(true);
-    setError("");
-    Promise.all([
-      api.schedules.listForUser(userId).then(setSchedules),
-      api.categories.listForUser(userId).then(setCategories),
-      api.progressions.listForUser(userId).then(p => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [s, c, p] = await Promise.all([
+          api.schedules.listForUser(userId),
+          api.categories.listForUser(userId),
+          api.progressions.listForUser(userId),
+        ]);
+        if (cancelled) return;
+        setSchedules(s);
+        setCategories(c);
         setProgressions(p);
         if (p.length > 0) setProgTab(p[0].name);
-      }),
-    ])
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
+        setError("");
+      } catch (e) {
+        if (!cancelled) setError(e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    setLoading(true);
+    load();
+    return () => { cancelled = true; };
   }, [userId]);
 
   const daySchedule = schedules.filter(s => s.day_of_week === schedDay).sort((a, b) => a.sort_order - b.sort_order);
