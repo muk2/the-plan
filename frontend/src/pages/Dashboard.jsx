@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { COLORS } from "../theme";
@@ -83,6 +83,27 @@ export default function Dashboard() {
   const [autoWorkEnd, setAutoWorkEnd] = useState("17:00");
   const [autoPreview, setAutoPreview] = useState(null); // { blocks: { 0: [...], 1: [...], ... } }
   const [autoPreviewDay, setAutoPreviewDay] = useState(0);
+
+  // Undo toast system
+  const [undoToast, setUndoToast] = useState(null); // { message, onUndo, timer }
+  const undoTimerRef = useRef(null);
+
+  const showUndoToast = useCallback((message, undoFn, commitFn) => {
+    // Cancel any pending undo
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    // Set the toast
+    setUndoToast({ message, onUndo: () => {
+      clearTimeout(undoTimerRef.current);
+      undoFn();
+      setUndoToast(null);
+    }});
+    // Auto-commit after 5 seconds
+    undoTimerRef.current = setTimeout(() => {
+      commitFn();
+      setUndoToast(null);
+    }, 5000);
+  }, []);
+
 
   const loadAll = () => {
     api.categories.list().then(setCategories).catch(() => {});
@@ -187,12 +208,14 @@ export default function Dashboard() {
   };
 
   const deleteCategory = async (name) => {
-    setSaving(true); setError("");
-    try {
-      await api.categories.remove(name);
-      setCategories(categories.filter(c => c.name !== name));
-    } catch (e) { setError(e.message); }
-    finally { setSaving(false); }
+    const cat = categories.find(c => c.name === name);
+    const prevCategories = [...categories];
+    setCategories(categories.filter(c => c.name !== name));
+    showUndoToast(
+      `Deleted activity "${cat?.label || name}"`,
+      () => setCategories(prevCategories),
+      async () => { try { await api.categories.remove(name); } catch { /* ok */ } }
+    );
   };
 
   // ── Progression CRUD ──
@@ -238,16 +261,23 @@ export default function Dashboard() {
   };
 
   const deleteProgression = async (id) => {
-    if (!confirm("Delete this progression?")) return;
-    setSaving(true); setError("");
-    try {
-      await api.progressions.remove(id);
-      const fresh = await api.progressions.list();
-      setProgressions(fresh);
-      if (fresh.length > 0) setProgTab(fresh[0].name);
-      else setProgTab(null);
-    } catch (e) { setError(e.message); }
-    finally { setSaving(false); }
+    const prog = progressions.find(p => p.id === id);
+    if (!prog) return;
+    // Optimistically remove from UI
+    const prevProgressions = [...progressions];
+    const prevTab = progTab;
+    const filtered = progressions.filter(p => p.id !== id);
+    setProgressions(filtered);
+    if (filtered.length > 0) setProgTab(filtered[0].name);
+    else setProgTab(null);
+
+    showUndoToast(
+      `Deleted "${prog.label}"`,
+      () => { setProgressions(prevProgressions); setProgTab(prevTab); },
+      async () => {
+        try { await api.progressions.remove(id); } catch { /* already gone */ }
+      }
+    );
   };
 
   const addPhase = () => {
@@ -703,9 +733,14 @@ export default function Dashboard() {
                     <Tag color={meta.color} label={meta.label} />
                     <span style={{ color: COLORS.accent, fontFamily: "'IBM Plex Mono', monospace", fontSize: 14, fontWeight: 700, minWidth: 44 }}>{log.hours}h</span>
                     {log.note && <span style={{ color: COLORS.textDim, fontSize: 12, flex: 1 }}>{log.note}</span>}
-                    <button onClick={async () => {
-                      await api.progress.remove(log.id);
+                    <button onClick={() => {
+                      const prevLogs = [...progressLogs];
                       setProgressLogs(progressLogs.filter(l => l.id !== log.id));
+                      showUndoToast(
+                        `Removed ${log.hours}h ${(typeMeta[log.category_name] || {}).label || log.category_name}`,
+                        () => setProgressLogs(prevLogs),
+                        async () => { try { await api.progress.remove(log.id); } catch { /* ok */ } }
+                      );
                     }} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", fontSize: 16, padding: 4, opacity: 0.5 }}>{"\u2715"}</button>
                   </div>
                 );
@@ -1033,6 +1068,25 @@ export default function Dashboard() {
             <button onClick={previewAutoSchedule} style={{ ...S.btn, width: "100%", textAlign: "center", marginTop: 16 }}>Preview Schedule</button>
           )}
         </Modal>
+      )}
+      {/* Undo toast */}
+      {undoToast && (
+        <div style={{
+          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+          background: COLORS.surface, border: `1px solid ${COLORS.border}`,
+          borderRadius: 10, padding: "12px 20px",
+          display: "flex", alignItems: "center", gap: 16,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          zIndex: 2000,
+          animation: "slideUp 0.2s ease",
+        }}>
+          <span style={{ color: COLORS.text, fontSize: 13 }}>{undoToast.message}</span>
+          <button onClick={undoToast.onUndo} style={{
+            background: COLORS.accent, color: COLORS.bg,
+            border: "none", borderRadius: 6, padding: "6px 16px",
+            fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+          }}>Undo</button>
+        </div>
       )}
     </div>
   );
