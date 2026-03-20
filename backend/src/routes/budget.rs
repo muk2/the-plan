@@ -24,9 +24,14 @@ pub async fn set_budget(
     AuthUser(user_id): AuthUser,
     Json(items): Json<Vec<BudgetItemInput>>,
 ) -> Result<Json<Vec<BudgetItem>>, (StatusCode, String)> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     sqlx::query("DELETE FROM budget_items WHERE user_id = ?")
         .bind(user_id)
-        .execute(&pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -39,10 +44,14 @@ pub async fn set_budget(
         .bind(item.hours)
         .bind(&item.color)
         .bind(item.sort_order.unwrap_or(i as i64))
-        .execute(&pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
+
+    tx.commit()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let result = sqlx::query_as::<_, BudgetItem>(
         "SELECT * FROM budget_items WHERE user_id = ? ORDER BY sort_order",
