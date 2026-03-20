@@ -24,8 +24,9 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    await auth.logout();
+    // Clear user state immediately so UI redirects right away
     setUser(null);
+    try { await auth.logout(); } catch { /* session may already be expired */ }
   };
 
   const refreshUser = async () => {

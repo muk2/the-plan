@@ -24,10 +24,18 @@ pub async fn put_schedule_day(
     AuthUser(user_id): AuthUser,
     Json(input): Json<BulkScheduleInput>,
 ) -> Result<Json<Vec<ScheduleBlock>>, (StatusCode, String)> {
+    // Validate time ranges
+    for block in &input.blocks {
+        validate_time_range(&block.time_range)?;
+    }
+
+    let mut tx = pool.begin().await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     sqlx::query("DELETE FROM schedule_blocks WHERE user_id = ? AND day_of_week = ?")
         .bind(user_id)
         .bind(input.day_of_week)
-        .execute(&pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -42,10 +50,13 @@ pub async fn put_schedule_day(
         .bind(&block.category_name)
         .bind(&block.note)
         .bind(block.sort_order.unwrap_or(i as i64))
-        .execute(&pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
+
+    tx.commit().await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let blocks = sqlx::query_as::<_, ScheduleBlock>(
         "SELECT * FROM schedule_blocks WHERE user_id = ? AND day_of_week = ? ORDER BY sort_order"
@@ -57,6 +68,25 @@ pub async fn put_schedule_day(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(blocks))
+}
+
+fn validate_time_range(time_range: &str) -> Result<(), (StatusCode, String)> {
+    // Allow single time (e.g. "22:00" for sleep) or range "HH:MM–HH:MM"
+    let parts: Vec<&str> = time_range.split(|c| c == '\u{2013}' || c == '-').collect();
+    for part in &parts {
+        let trimmed = part.trim();
+        if trimmed.is_empty() { continue; }
+        let time_parts: Vec<&str> = trimmed.split(':').collect();
+        if time_parts.len() != 2 {
+            return Err((StatusCode::BAD_REQUEST, format!("Invalid time format: '{}'. Use HH:MM", trimmed)));
+        }
+        let h: u32 = time_parts[0].parse().map_err(|_| (StatusCode::BAD_REQUEST, format!("Invalid hour in '{}'", trimmed)))?;
+        let m: u32 = time_parts[1].parse().map_err(|_| (StatusCode::BAD_REQUEST, format!("Invalid minute in '{}'", trimmed)))?;
+        if h > 23 || m > 59 {
+            return Err((StatusCode::BAD_REQUEST, format!("Time out of range: '{}'", trimmed)));
+        }
+    }
+    Ok(())
 }
 
 pub async fn get_user_schedules(

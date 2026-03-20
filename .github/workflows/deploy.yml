@@ -1,0 +1,29 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # allow manual trigger from GitHub UI
+
+env:
+  RUNNER_TRACKING_ID: ""  # Prevent runner from killing processes started by deploy
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+
+      - name: Build backend
+        working-directory: backend
+        run: cargo build --release
+
+      - name: Deploy
+        run: ./scripts/deploy.sh

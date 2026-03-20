@@ -28,6 +28,7 @@ pub async fn init_pool(db_path: &str) -> SqlitePool {
     // Run migrations
     let migrations: &[&str] = &[
         include_str!("../migrations/001_init.sql"),
+        include_str!("../migrations/002_indexes.sql"),
         include_str!("../migrations/003_ai_rate_limit.sql"),
     ];
     for migration_sql in migrations {
@@ -41,6 +42,12 @@ pub async fn init_pool(db_path: &str) -> SqlitePool {
             }
         }
     }
+
+    // Clean up expired sessions on startup
+    sqlx::query("DELETE FROM sessions WHERE expires_at < datetime('now')")
+        .execute(&pool)
+        .await
+        .ok();
 
     tracing::info!("Database initialized at {}", db_path);
     pool
