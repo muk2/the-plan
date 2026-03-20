@@ -24,7 +24,7 @@ pub async fn analyze(
 
     // Rate limiting: check requests in the last hour
     let recent_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ai_requests WHERE user_id = ? AND created_at > datetime('now', '-1 hour')"
+        "SELECT COUNT(*) FROM ai_requests WHERE user_id = ? AND created_at > datetime('now', '-1 hour')",
     )
     .bind(user_id)
     .fetch_one(&pool)
@@ -60,14 +60,15 @@ pub async fn analyze(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let encrypted_key = user.ai_api_key.as_ref().ok_or((
-        StatusCode::BAD_REQUEST,
-        "No AI API key configured. Go to Profile to add your API key.".into(),
-    ))?;
+    let provider = user.ai_provider.as_deref().unwrap_or("openrouter");
 
-    // Decrypt the API key
-    let api_key = crate::crypto::decrypt(encrypted_key).unwrap_or_else(|_| encrypted_key.clone()); // Fall back to raw value for pre-encryption keys
-
+    // Decrypt the API key (if present)
+    let api_key = match user.ai_api_key.as_ref() {
+        Some(key) => {
+            crate::crypto::decrypt(key).unwrap_or_else(|_| key.clone()) // Fall back to raw value for pre-encryption keys
+        }
+        None => String::new(),
+    };
     let base_url = user
         .ai_base_url
         .as_deref()
@@ -76,6 +77,14 @@ pub async fn analyze(
         .ai_model
         .as_deref()
         .unwrap_or("anthropic/claude-sonnet-4");
+
+    // Ollama doesn't need a key; everything else does
+    if provider != "ollama" && api_key.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "No AI API key configured. Go to Profile to set up your AI provider.".into(),
+        ));
+    }
 
     // Gather user data
     let schedules = sqlx::query_as::<_, ScheduleBlock>(
@@ -180,47 +189,98 @@ pub async fn analyze(
     );
 
     let client = reqwest::Client::new();
-    let response = client
-        .post(format!("{}/chat/completions", base_url))
-        .header("Authorization", format!("Bearer {}", api_key))
-        .header("Content-Type", "application/json")
-        .json(&serde_json::json!({
-            "model": model,
-            "messages": [
-                { "role": "system", "content": system_prompt },
-                { "role": "user", "content": user_prompt }
-            ],
-            "max_tokens": 2000
-        }))
-        .send()
-        .await
-        .map_err(|e| {
+
+    let analysis = if provider == "anthropic" {
+        // Anthropic Messages API has a different format
+        let response = client
+            .post(format!("{}/messages", base_url.trim_end_matches('/')))
+            .header("x-api-key", &api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({
+                "model": model,
+                "system": system_prompt,
+                "messages": [
+                    { "role": "user", "content": user_prompt }
+                ],
+                "max_tokens": 2000
+            }))
+            .send()
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::BAD_GATEWAY,
+                    format!("Anthropic API request failed: {}", e),
+                )
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                format!("Anthropic API error ({}): {}", status, body),
+            ));
+        }
+
+        let body: serde_json::Value = response.json().await.map_err(|e| {
             (
                 StatusCode::BAD_GATEWAY,
-                format!("AI API request failed: {}", e),
+                format!("Failed to parse Anthropic response: {}", e),
             )
         })?;
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        return Err((
-            StatusCode::BAD_GATEWAY,
-            format!("AI API error ({}): {}", status, body),
-        ));
-    }
+        body["content"][0]["text"]
+            .as_str()
+            .unwrap_or("No analysis generated")
+            .to_string()
+    } else {
+        // OpenAI-compatible format (OpenRouter, OpenAI, Google, Groq, Together, Ollama, custom)
+        let response = client
+            .post(format!(
+                "{}/chat/completions",
+                base_url.trim_end_matches('/')
+            ))
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({
+                "model": model,
+                "messages": [
+                    { "role": "system", "content": system_prompt },
+                    { "role": "user", "content": user_prompt }
+                ],
+                "max_tokens": 2000
+            }))
+            .send()
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::BAD_GATEWAY,
+                    format!("AI API request failed: {}", e),
+                )
+            })?;
 
-    let body: serde_json::Value = response.json().await.map_err(|e| {
-        (
-            StatusCode::BAD_GATEWAY,
-            format!("Failed to parse AI response: {}", e),
-        )
-    })?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                format!("AI API error ({}): {}", status, body),
+            ));
+        }
 
-    let analysis = body["choices"][0]["message"]["content"]
-        .as_str()
-        .unwrap_or("No analysis generated")
-        .to_string();
+        let body: serde_json::Value = response.json().await.map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Failed to parse AI response: {}", e),
+            )
+        })?;
+
+        body["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap_or("No analysis generated")
+            .to_string()
+    };
 
     Ok(Json(AiAnalyzeResponse { analysis }))
 }
