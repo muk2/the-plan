@@ -54,9 +54,15 @@ export default function Dashboard() {
   const [logNote, setLogNote] = useState("");
   const [logDate, setLogDate] = useState(new Date().toISOString().split("T")[0]);
 
+  // Loading & error states
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
   // Schedule editor
   const [editing, setEditing] = useState(false);
   const [editBlocks, setEditBlocks] = useState([]);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAdd, setQuickAdd] = useState({ time_range: "", label: "", category_name: "", note: "" });
 
   // Category form
   const [catName, setCatName] = useState("");
@@ -146,12 +152,14 @@ export default function Dashboard() {
   };
 
   const saveSchedule = async () => {
+    setSaving(true); setError("");
     try {
       await api.schedules.putDay({ day_of_week: schedDay, blocks: editBlocks });
       const fresh = await api.schedules.list();
       setSchedules(fresh);
       setEditing(false);
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
   const addBlock = () => {
@@ -167,16 +175,34 @@ export default function Dashboard() {
 
   const removeBlock = (idx) => setEditBlocks(editBlocks.filter((_, i) => i !== idx));
 
+  const handleQuickAdd = async () => {
+    if (!quickAdd.time_range || !quickAdd.label) return;
+    const existing = daySchedule.map(s => ({
+      time_range: s.time_range, label: s.label,
+      category_name: s.category_name, note: s.note || "",
+    }));
+    const newBlocks = [...existing, { ...quickAdd, note: quickAdd.note || "" }];
+    try {
+      await api.schedules.putDay({ day_of_week: schedDay, blocks: newBlocks });
+      const fresh = await api.schedules.list();
+      setSchedules(fresh);
+      setQuickAdd({ time_range: "", label: "", category_name: categories.length > 0 ? categories[0].name : "", note: "" });
+      setShowQuickAdd(false);
+    } catch (e) { alert(e.message); }
+  };
+
   // ── Category CRUD ──
   const saveCategory = async () => {
     if (!catName || !catLabel) return;
     const slug = catName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    setSaving(true); setError("");
     try {
       await api.categories.upsert({ name: slug, label: catLabel, color: catColor });
       const fresh = await api.categories.list();
       setCategories(fresh);
       setCatName(""); setCatLabel(""); setCatColor("#e8c547");
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
   const deleteCategory = async (name) => {
@@ -217,6 +243,7 @@ export default function Dashboard() {
     if (!progForm.name || !progForm.label) return;
     const slug = progForm.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
     const payload = { ...progForm, name: slug };
+    setSaving(true); setError("");
     try {
       if (editingProg) {
         await api.progressions.update(editingProg.id, payload);
@@ -227,7 +254,8 @@ export default function Dashboard() {
       setProgressions(fresh);
       if (!progTab && fresh.length > 0) setProgTab(fresh[0].name);
       setShowProgressionModal(false);
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
   const deleteProgression = async (id) => {
@@ -274,11 +302,13 @@ export default function Dashboard() {
   };
 
   const saveBudget = async () => {
+    setSaving(true); setError("");
     try {
       const result = await api.budget.set(budgetForm.filter(b => b.label && b.hours > 0));
       setBudgetItems(result);
       setShowBudgetModal(false);
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
   // ── Auto Schedule ──
@@ -292,8 +322,9 @@ export default function Dashboard() {
 
   const generateAutoSchedule = async () => {
     const active = autoActivities.filter(a => a.enabled);
-    if (active.length === 0) return alert("Select at least one activity");
+    if (active.length === 0) { setError("Select at least one activity"); return; }
 
+    setSaving(true); setError("");
     const parseTime = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + (m || 0); };
     const formatTime = (mins) => { const h = Math.floor(mins / 60); const m = mins % 60; return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`; };
 
@@ -373,18 +404,21 @@ export default function Dashboard() {
     const fresh = await api.schedules.list();
     setSchedules(fresh);
     setShowAutoSchedule(false);
+    setSaving(false);
   };
 
   // ── Log Progress ──
   const handleLog = async (e) => {
     e.preventDefault();
     if (!logCat || !logHours) return;
+    setSaving(true); setError("");
     try {
       await api.progress.log({ category_name: logCat, hours: parseFloat(logHours), note: logNote || null, date: logDate });
       setLogHours(""); setLogNote("");
       const fresh = await api.progress.list({ range: "week" });
       setProgressLogs(fresh);
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
   // ── AI ──
@@ -437,6 +471,17 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {error && (
+        <div style={{
+          margin: "0 28px", padding: "10px 16px",
+          background: "#e5555522", borderRadius: 8, marginTop: 16,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <span style={{ color: "#e55", fontSize: 13 }}>{error}</span>
+          <button onClick={() => setError("")} style={{ background: "none", border: "none", color: "#e55", cursor: "pointer", fontSize: 16, padding: "2px 6px" }}>{"\u2715"}</button>
+        </div>
+      )}
+
       <div style={{ padding: "24px 28px", maxWidth: 1100 }}>
 
         {/* ═══════════════ SCHEDULE TAB ═══════════════ */}
@@ -473,7 +518,7 @@ export default function Dashboard() {
                 <button onClick={startEditing} style={S.btn}>Edit Day</button>
               ) : (
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={saveSchedule} style={S.btn}>Save</button>
+                  <button onClick={saveSchedule} disabled={saving} style={{ ...S.btn, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : "Save"}</button>
                   <button onClick={() => setEditing(false)} style={S.btnSecondary}>Cancel</button>
                 </div>
               )}
@@ -481,15 +526,47 @@ export default function Dashboard() {
 
             {!editing ? (
               <>
-                {daySchedule.length === 0 ? (
+                {daySchedule.length === 0 && !showQuickAdd ? (
                   <div style={{ ...S.card, textAlign: "center", padding: 40 }}>
                     <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.5 }}>{"\u{1F4C5}"}</div>
                     <div style={{ color: COLORS.textDim, fontSize: 14 }}>No schedule for {DAY_NAMES[schedDay]}.</div>
-                    <div style={{ color: COLORS.textFaint, fontSize: 12, marginTop: 4 }}>Click "Edit Day" to add blocks or "Auto-Generate" for a full schedule.</div>
+                    <div style={{ color: COLORS.textFaint, fontSize: 12, marginTop: 4 }}>
+                      Click{" "}
+                      <button onClick={() => { setShowQuickAdd(true); setQuickAdd(q => ({ ...q, category_name: q.category_name || (categories[0]?.name || "") })); }} style={{ background: "none", border: "none", color: COLORS.accent, cursor: "pointer", fontFamily: "inherit", fontSize: 12, textDecoration: "underline", padding: 0 }}>+ Add Block</button>
+                      {" "}or "Edit Day" or "Auto-Generate" for a full schedule.
+                    </div>
                   </div>
                 ) : (
-                  <div>{daySchedule.map((item, i) => <ScheduleRow key={i} item={item} typeMeta={typeMeta} />)}</div>
+                  <div>
+                    {daySchedule.map((item, i) => <ScheduleRow key={i} item={item} typeMeta={typeMeta} />)}
+                  </div>
                 )}
+
+                {/* Quick-add inline form */}
+                {!showQuickAdd ? (
+                  <button onClick={() => { setShowQuickAdd(true); setQuickAdd(q => ({ ...q, category_name: q.category_name || (categories[0]?.name || "") })); }} style={{
+                    width: "100%", padding: "10px", marginTop: 8,
+                    background: "transparent", border: `1px dashed ${COLORS.border}`,
+                    borderRadius: 8, color: COLORS.textDim, fontSize: 12,
+                    cursor: "pointer", fontFamily: "inherit",
+                    transition: "all 0.15s",
+                  }}>+ Add Block</button>
+                ) : (
+                  <div style={{
+                    display: "flex", gap: 8, marginTop: 8, alignItems: "center",
+                    padding: "10px 12px", background: COLORS.surface,
+                    borderRadius: 8, border: `1px solid ${COLORS.accent}44`,
+                  }}>
+                    <TimeRangeInput value={quickAdd.time_range} onChange={v => setQuickAdd({ ...quickAdd, time_range: v })} />
+                    <input style={{ ...S.input, flex: 1 }} placeholder="Activity name" value={quickAdd.label} onChange={e => setQuickAdd({ ...quickAdd, label: e.target.value })} onKeyDown={e => { if (e.key === "Enter") handleQuickAdd(); }} />
+                    <select style={{ ...S.select, width: 140 }} value={quickAdd.category_name} onChange={e => setQuickAdd({ ...quickAdd, category_name: e.target.value })}>
+                      {categories.map(c => <option key={c.name} value={c.name}>{c.label}</option>)}
+                    </select>
+                    <button onClick={handleQuickAdd} style={{ ...S.btn, padding: "8px 14px" }}>Add</button>
+                    <button onClick={() => setShowQuickAdd(false)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", fontSize: 16, padding: "4px" }}>{"\u2715"}</button>
+                  </div>
+                )}
+
                 {/* Weekly overview mini-grid */}
                 {schedules.length > 0 && (
                   <div style={{ ...S.card, marginTop: 20 }}>
@@ -616,7 +693,7 @@ export default function Dashboard() {
                   <label style={S.label}>Note</label>
                   <input style={{ ...S.input, width: "100%" }} value={logNote} onChange={e => setLogNote(e.target.value)} placeholder="What did you work on?" />
                 </div>
-                <button type="submit" style={S.btn}>Log</button>
+                <button type="submit" disabled={saving} style={{ ...S.btn, opacity: saving ? 0.6 : 1 }}>{saving ? "Logging..." : "Log"}</button>
               </form>
             </div>
 
@@ -760,7 +837,7 @@ export default function Dashboard() {
               <label style={S.label}>Color</label>
               <ColorPicker value={catColor} onChange={setCatColor} />
             </div>
-            <button onClick={saveCategory} style={S.btn}>Add Activity</button>
+            <button onClick={saveCategory} disabled={saving} style={{ ...S.btn, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : "Add Activity"}</button>
           </div>
         </Modal>
       )}
@@ -807,7 +884,7 @@ export default function Dashboard() {
               </div>
             ))}
             <button onClick={addPhase} style={{ ...S.btnSecondary, textAlign: "center" }}>+ Add Phase</button>
-            <button onClick={saveProgression} style={{ ...S.btn, textAlign: "center", marginTop: 8 }}>{editingProg ? "Save Changes" : "Create Progression"}</button>
+            <button onClick={saveProgression} disabled={saving} style={{ ...S.btn, textAlign: "center", marginTop: 8, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : (editingProg ? "Save Changes" : "Create Progression")}</button>
           </div>
         </Modal>
       )}
@@ -835,7 +912,7 @@ export default function Dashboard() {
             </div>
           ))}
           <button onClick={() => setBudgetForm([...budgetForm, { label: "", hours: 0, color: "#888888" }])} style={{ ...S.btnSecondary, width: "100%", textAlign: "center", marginTop: 8, marginBottom: 12 }}>+ Add Category</button>
-          <button onClick={saveBudget} style={{ ...S.btn, width: "100%", textAlign: "center" }}>Save Budget</button>
+          <button onClick={saveBudget} disabled={saving} style={{ ...S.btn, width: "100%", textAlign: "center", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : "Save Budget"}</button>
         </Modal>
       )}
 
@@ -891,7 +968,7 @@ export default function Dashboard() {
           <div style={{ color: "#e8c54788", fontSize: 11, marginTop: 12, marginBottom: 16 }}>
             This will replace your entire current schedule for all 7 days.
           </div>
-          <button onClick={generateAutoSchedule} style={{ ...S.btn, width: "100%", textAlign: "center" }}>Generate Schedule</button>
+          <button onClick={generateAutoSchedule} disabled={saving} style={{ ...S.btn, width: "100%", textAlign: "center", opacity: saving ? 0.6 : 1 }}>{saving ? "Generating..." : "Generate Schedule"}</button>
         </Modal>
       )}
       {/* Undo toast */}
