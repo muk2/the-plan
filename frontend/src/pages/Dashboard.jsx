@@ -80,10 +80,6 @@ export default function Dashboard() {
   const [autoWorkStart, setAutoWorkStart] = useState("09:00");
   const [autoWorkEnd, setAutoWorkEnd] = useState("17:00");
 
-  useEffect(() => {
-    loadAll();
-  }, []);
-
   const loadAll = () => {
     api.categories.list().then(setCategories).catch(() => {});
     api.schedules.list().then(setSchedules).catch(() => {});
@@ -94,6 +90,8 @@ export default function Dashboard() {
     api.budget.list().then(setBudgetItems).catch(() => {});
     api.progress.list({ range: "week" }).then(setProgressLogs).catch(() => {});
   };
+
+  useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const typeMeta = useMemo(() => {
     const m = {};

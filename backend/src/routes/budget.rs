@@ -1,4 +1,4 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{Json, extract::State, http::StatusCode};
 use sqlx::SqlitePool;
 
 use crate::models::*;
@@ -9,7 +9,7 @@ pub async fn get_budget(
     AuthUser(user_id): AuthUser,
 ) -> Result<Json<Vec<BudgetItem>>, StatusCode> {
     let items = sqlx::query_as::<_, BudgetItem>(
-        "SELECT * FROM budget_items WHERE user_id = ? ORDER BY sort_order"
+        "SELECT * FROM budget_items WHERE user_id = ? ORDER BY sort_order",
     )
     .bind(user_id)
     .fetch_all(&pool)
@@ -24,7 +24,9 @@ pub async fn set_budget(
     AuthUser(user_id): AuthUser,
     Json(items): Json<Vec<BudgetItemInput>>,
 ) -> Result<Json<Vec<BudgetItem>>, (StatusCode, String)> {
-    let mut tx = pool.begin().await
+    let mut tx = pool
+        .begin()
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     sqlx::query("DELETE FROM budget_items WHERE user_id = ?")
@@ -47,11 +49,12 @@ pub async fn set_budget(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
 
-    tx.commit().await
+    tx.commit()
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let result = sqlx::query_as::<_, BudgetItem>(
-        "SELECT * FROM budget_items WHERE user_id = ? ORDER BY sort_order"
+        "SELECT * FROM budget_items WHERE user_id = ? ORDER BY sort_order",
     )
     .bind(user_id)
     .fetch_all(&pool)
