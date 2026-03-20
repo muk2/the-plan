@@ -1,4 +1,8 @@
-use axum::{extract::{Path, State}, http::StatusCode, Json};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+};
 use rand::Rng;
 use sqlx::SqlitePool;
 
@@ -25,7 +29,9 @@ pub struct InviteInfo {
 fn generate_invite_code() -> String {
     let mut rng = rand::thread_rng();
     let chars: Vec<char> = "abcdefghijklmnopqrstuvwxyz0123456789".chars().collect();
-    (0..8).map(|_| chars[rng.r#gen_range(0..chars.len())]).collect()
+    (0..8)
+        .map(|_| chars[rng.r#gen_range(0..chars.len())])
+        .collect()
 }
 
 pub async fn create_invite(
@@ -82,11 +88,17 @@ pub async fn accept_invite(
         return Err((StatusCode::BAD_REQUEST, "Cannot friend yourself".into()));
     }
 
-    let (a, b) = if my_id < invite.user_id { (my_id, invite.user_id) } else { (invite.user_id, my_id) };
+    let (a, b) = if my_id < invite.user_id {
+        (my_id, invite.user_id)
+    } else {
+        (invite.user_id, my_id)
+    };
 
     let existing = sqlx::query("SELECT id FROM friendships WHERE user_a = ? AND user_b = ?")
-        .bind(a).bind(b)
-        .fetch_optional(&pool).await
+        .bind(a)
+        .bind(b)
+        .fetch_optional(&pool)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if existing.is_some() {
@@ -94,15 +106,18 @@ pub async fn accept_invite(
     }
 
     let friendship = sqlx::query_as::<_, Friendship>(
-        "INSERT INTO friendships (user_a, user_b) VALUES (?, ?) RETURNING *"
+        "INSERT INTO friendships (user_a, user_b) VALUES (?, ?) RETURNING *",
     )
-    .bind(a).bind(b)
-    .fetch_one(&pool).await
+    .bind(a)
+    .bind(b)
+    .fetch_one(&pool)
+    .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let friend_user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
         .bind(invite.user_id)
-        .fetch_one(&pool).await
+        .fetch_one(&pool)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(FriendInfo {
@@ -115,19 +130,25 @@ pub async fn list_friends(
     State(pool): State<SqlitePool>,
     AuthUser(user_id): AuthUser,
 ) -> Result<Json<Vec<FriendInfo>>, StatusCode> {
-    let rows = sqlx::query_as::<_, Friendship>(
-        "SELECT * FROM friendships WHERE user_a = ? OR user_b = ?"
-    )
-    .bind(user_id).bind(user_id)
-    .fetch_all(&pool).await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let rows =
+        sqlx::query_as::<_, Friendship>("SELECT * FROM friendships WHERE user_a = ? OR user_b = ?")
+            .bind(user_id)
+            .bind(user_id)
+            .fetch_all(&pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let mut friends = Vec::new();
     for f in rows {
-        let friend_id = if f.user_a == user_id { f.user_b } else { f.user_a };
+        let friend_id = if f.user_a == user_id {
+            f.user_b
+        } else {
+            f.user_a
+        };
         let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
             .bind(friend_id)
-            .fetch_one(&pool).await
+            .fetch_one(&pool)
+            .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         friends.push(FriendInfo {
             friendship_id: f.id,
@@ -143,12 +164,13 @@ pub async fn remove_friend(
     AuthUser(user_id): AuthUser,
     Path(friendship_id): Path<i64>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let result = sqlx::query(
-        "DELETE FROM friendships WHERE id = ? AND (user_a = ? OR user_b = ?)"
-    )
-    .bind(friendship_id).bind(user_id).bind(user_id)
-    .execute(&pool).await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let result = sqlx::query("DELETE FROM friendships WHERE id = ? AND (user_a = ? OR user_b = ?)")
+        .bind(friendship_id)
+        .bind(user_id)
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
         return Err((StatusCode::NOT_FOUND, "Friendship not found".into()));

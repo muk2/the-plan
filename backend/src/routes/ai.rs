@@ -1,4 +1,4 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{Json, extract::State, http::StatusCode};
 use sqlx::SqlitePool;
 
 use crate::models::*;
@@ -13,15 +13,18 @@ pub async fn analyze(
     Json(input): Json<AiAnalyzeRequest>,
 ) -> Result<Json<AiAnalyzeResponse>, (StatusCode, String)> {
     // Validate prompt length
-    if let Some(ref prompt) = input.prompt {
-        if prompt.len() > MAX_PROMPT_LEN {
-            return Err((StatusCode::BAD_REQUEST, format!("Prompt too long (max {} characters)", MAX_PROMPT_LEN)));
-        }
+    if let Some(ref prompt) = input.prompt
+        && prompt.len() > MAX_PROMPT_LEN
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Prompt too long (max {MAX_PROMPT_LEN} characters)"),
+        ));
     }
 
     // Rate limiting: check requests in the last hour
     let recent_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ai_requests WHERE user_id = ? AND created_at > datetime('now', '-1 hour')"
+        "SELECT COUNT(*) FROM ai_requests WHERE user_id = ? AND created_at > datetime('now', '-1 hour')",
     )
     .bind(user_id)
     .fetch_one(&pool)
@@ -29,17 +32,27 @@ pub async fn analyze(
     .unwrap_or(0);
 
     if recent_count >= RATE_LIMIT_PER_HOUR {
-        return Err((StatusCode::TOO_MANY_REQUESTS, format!("Rate limit exceeded. Max {} AI requests per hour.", RATE_LIMIT_PER_HOUR)));
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            format!(
+                "Rate limit exceeded. Max {} AI requests per hour.",
+                RATE_LIMIT_PER_HOUR
+            ),
+        ));
     }
 
     // Log this request for rate limiting
     sqlx::query("INSERT INTO ai_requests (user_id) VALUES (?)")
         .bind(user_id)
-        .execute(&pool).await.ok();
+        .execute(&pool)
+        .await
+        .ok();
 
     // Clean old entries periodically
     sqlx::query("DELETE FROM ai_requests WHERE created_at < datetime('now', '-2 hours')")
-        .execute(&pool).await.ok();
+        .execute(&pool)
+        .await
+        .ok();
 
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
         .bind(user_id)
@@ -51,64 +64,128 @@ pub async fn analyze(
 
     // Decrypt the API key (if present)
     let api_key = match user.ai_api_key.as_ref() {
-        Some(key) => crate::crypto::decrypt(key)
-            .unwrap_or_else(|_| key.clone()), // Fall back to raw value for pre-encryption keys
+        Some(key) => {
+            crate::crypto::decrypt(key).unwrap_or_else(|_| key.clone()) // Fall back to raw value for pre-encryption keys
+        }
         None => String::new(),
     };
-    let base_url = user.ai_base_url.as_deref().unwrap_or("https://openrouter.ai/api/v1");
-    let model = user.ai_model.as_deref().unwrap_or("anthropic/claude-sonnet-4");
+    let base_url = user
+        .ai_base_url
+        .as_deref()
+        .unwrap_or("https://openrouter.ai/api/v1");
+    let model = user
+        .ai_model
+        .as_deref()
+        .unwrap_or("anthropic/claude-sonnet-4");
 
     // Ollama doesn't need a key; everything else does
     if provider != "ollama" && api_key.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "No AI API key configured. Go to Profile to set up your AI provider.".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "No AI API key configured. Go to Profile to set up your AI provider.".into(),
+        ));
     }
 
     // Gather user data
     let schedules = sqlx::query_as::<_, ScheduleBlock>(
-        "SELECT * FROM schedule_blocks WHERE user_id = ? ORDER BY day_of_week, sort_order"
+        "SELECT * FROM schedule_blocks WHERE user_id = ? ORDER BY day_of_week, sort_order",
     )
-    .bind(user_id).fetch_all(&pool).await.unwrap_or_default();
+    .bind(user_id)
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
 
     let progress = sqlx::query_as::<_, ProgressLog>(
-        "SELECT * FROM progress_logs WHERE user_id = ? ORDER BY date DESC LIMIT 60"
+        "SELECT * FROM progress_logs WHERE user_id = ? ORDER BY date DESC LIMIT 60",
     )
-    .bind(user_id).fetch_all(&pool).await.unwrap_or_default();
+    .bind(user_id)
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
 
-    let progressions = sqlx::query_as::<_, Progression>(
-        "SELECT * FROM progressions WHERE user_id = ?"
-    )
-    .bind(user_id).fetch_all(&pool).await.unwrap_or_default();
+    let progressions =
+        sqlx::query_as::<_, Progression>("SELECT * FROM progressions WHERE user_id = ?")
+            .bind(user_id)
+            .fetch_all(&pool)
+            .await
+            .unwrap_or_default();
 
-    let categories = sqlx::query_as::<_, Category>(
-        "SELECT * FROM categories WHERE user_id = ?"
-    )
-    .bind(user_id).fetch_all(&pool).await.unwrap_or_default();
+    let categories = sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE user_id = ?")
+        .bind(user_id)
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
 
-    let schedule_summary: String = schedules.iter().map(|s| {
-        let day = match s.day_of_week {
-            0 => "Mon", 1 => "Tue", 2 => "Wed", 3 => "Thu", 4 => "Fri", 5 => "Sat", 6 => "Sun",
-            _ => "?",
-        };
-        format!("{} {} - {} [{}]", day, s.time_range, s.label, s.category_name)
-    }).collect::<Vec<_>>().join("\n");
+    let schedule_summary: String = schedules
+        .iter()
+        .map(|s| {
+            let day = match s.day_of_week {
+                0 => "Mon",
+                1 => "Tue",
+                2 => "Wed",
+                3 => "Thu",
+                4 => "Fri",
+                5 => "Sat",
+                6 => "Sun",
+                _ => "?",
+            };
+            format!(
+                "{} {} - {} [{}]",
+                day, s.time_range, s.label, s.category_name
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
 
-    let progress_summary: String = progress.iter().map(|p| {
-        format!("{}: {} - {:.1}h{}", p.date, p.category_name, p.hours,
-            p.note.as_ref().map(|n| format!(" ({})", n)).unwrap_or_default())
-    }).collect::<Vec<_>>().join("\n");
+    let progress_summary: String = progress
+        .iter()
+        .map(|p| {
+            format!(
+                "{}: {} - {:.1}h{}",
+                p.date,
+                p.category_name,
+                p.hours,
+                p.note
+                    .as_ref()
+                    .map(|n| format!(" ({})", n))
+                    .unwrap_or_default()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
 
-    let progression_summary: String = progressions.iter().map(|p| {
-        format!("{}: {}", p.label, p.current_level.as_deref().unwrap_or("not set"))
-    }).collect::<Vec<_>>().join("\n");
+    let progression_summary: String = progressions
+        .iter()
+        .map(|p| {
+            format!(
+                "{}: {}",
+                p.label,
+                p.current_level.as_deref().unwrap_or("not set")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
 
-    let category_list: String = categories.iter().map(|c| c.label.clone()).collect::<Vec<_>>().join(", ");
+    let category_list: String = categories
+        .iter()
+        .map(|c| c.label.clone())
+        .collect::<Vec<_>>()
+        .join(", ");
 
-    let user_prompt = input.prompt.as_deref().unwrap_or("Analyze my schedule and progress. Give me actionable suggestions.");
+    let user_prompt = input
+        .prompt
+        .as_deref()
+        .unwrap_or("Analyze my schedule and progress. Give me actionable suggestions.");
 
     let system_prompt = format!(
         "You are an AI productivity coach. Be specific, actionable, and encouraging. Reference the user's actual data.\n\n\
         User: {} ({})\nCategories: {}\n\nWeekly Schedule:\n{}\n\nRecent Progress Logs:\n{}\n\nSkill Progressions:\n{}",
-        user.display_name, user.username, category_list, schedule_summary, progress_summary, progression_summary
+        user.display_name,
+        user.username,
+        category_list,
+        schedule_summary,
+        progress_summary,
+        progression_summary
     );
 
     let client = reqwest::Client::new();
@@ -117,7 +194,7 @@ pub async fn analyze(
         // Anthropic Messages API has a different format
         let response = client
             .post(format!("{}/messages", base_url.trim_end_matches('/')))
-            .header("x-api-key", api_key)
+            .header("x-api-key", &api_key)
             .header("anthropic-version", "2023-06-01")
             .header("Content-Type", "application/json")
             .json(&serde_json::json!({
@@ -130,16 +207,28 @@ pub async fn analyze(
             }))
             .send()
             .await
-            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Anthropic API request failed: {}", e)))?;
+            .map_err(|e| {
+                (
+                    StatusCode::BAD_GATEWAY,
+                    format!("Anthropic API request failed: {}", e),
+                )
+            })?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err((StatusCode::BAD_GATEWAY, format!("Anthropic API error ({}): {}", status, body)));
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                format!("Anthropic API error ({}): {}", status, body),
+            ));
         }
 
-        let body: serde_json::Value = response.json().await
-            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Failed to parse Anthropic response: {}", e)))?;
+        let body: serde_json::Value = response.json().await.map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Failed to parse Anthropic response: {}", e),
+            )
+        })?;
 
         body["content"][0]["text"]
             .as_str()
@@ -148,7 +237,10 @@ pub async fn analyze(
     } else {
         // OpenAI-compatible format (OpenRouter, OpenAI, Google, Groq, Together, Ollama, custom)
         let response = client
-            .post(format!("{}/chat/completions", base_url.trim_end_matches('/')))
+            .post(format!(
+                "{}/chat/completions",
+                base_url.trim_end_matches('/')
+            ))
             .header("Authorization", format!("Bearer {}", api_key))
             .header("Content-Type", "application/json")
             .json(&serde_json::json!({
@@ -161,16 +253,28 @@ pub async fn analyze(
             }))
             .send()
             .await
-            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("AI API request failed: {}", e)))?;
+            .map_err(|e| {
+                (
+                    StatusCode::BAD_GATEWAY,
+                    format!("AI API request failed: {}", e),
+                )
+            })?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err((StatusCode::BAD_GATEWAY, format!("AI API error ({}): {}", status, body)));
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                format!("AI API error ({}): {}", status, body),
+            ));
         }
 
-        let body: serde_json::Value = response.json().await
-            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Failed to parse AI response: {}", e)))?;
+        let body: serde_json::Value = response.json().await.map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Failed to parse AI response: {}", e),
+            )
+        })?;
 
         body["choices"][0]["message"]["content"]
             .as_str()
