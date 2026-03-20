@@ -29,6 +29,7 @@ pub async fn init_pool(db_path: &str) -> SqlitePool {
     let migrations: &[&str] = &[
         include_str!("../migrations/001_init.sql"),
         include_str!("../migrations/002_indexes.sql"),
+        include_str!("../migrations/003_ai_rate_limit.sql"),
     ];
     for migration_sql in migrations {
         for statement in migration_sql.split(';') {

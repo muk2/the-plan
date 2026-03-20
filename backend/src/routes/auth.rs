@@ -128,11 +128,19 @@ pub async fn update_ai_settings(
     AuthUser(user_id): AuthUser,
     Json(input): Json<AiSettingsInput>,
 ) -> Result<Json<UserPublic>, (StatusCode, String)> {
+    // Encrypt the API key before storing
+    let encrypted_key = match &input.ai_api_key {
+        Some(key) if !key.is_empty() => {
+            Some(crate::crypto::encrypt(key).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?)
+        }
+        _ => None,
+    };
+
     sqlx::query(
         "UPDATE users SET ai_provider = ?, ai_api_key = ?, ai_model = ?, ai_base_url = ? WHERE id = ?"
     )
     .bind(&input.ai_provider)
-    .bind(&input.ai_api_key)
+    .bind(&encrypted_key)
     .bind(&input.ai_model)
     .bind(&input.ai_base_url)
     .bind(user_id)
