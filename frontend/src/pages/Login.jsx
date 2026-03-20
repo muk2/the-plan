@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { COLORS } from "../theme";
 
 export default function Login() {
-  const { login, signup } = useAuth();
+  const { user, login, signup } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [isSignup, setIsSignup] = useState(false);
@@ -15,6 +15,11 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   const inviteCode = searchParams.get("invite");
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) navigate(inviteCode ? `/invite/${inviteCode}` : "/");
+  }, [user, navigate, inviteCode]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

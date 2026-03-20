@@ -1,4 +1,4 @@
-.PHONY: build build-backend build-frontend dev dev-backend dev-frontend run stop clean service-install service-start service-stop service-logs
+.PHONY: build build-backend build-frontend dev dev-backend dev-frontend run stop clean deploy setup-runner service-install service-start service-stop service-logs
 
 # ── Production ──────────────────────────────────────────────
 
@@ -31,6 +31,14 @@ dev-backend:
 
 dev-frontend:
 	cd frontend && npm run dev
+
+# ── Deploy ──────────────────────────────────────────────────
+
+deploy: build
+	@./scripts/deploy.sh
+
+setup-runner:
+	@./scripts/setup-runner.sh
 
 # ── Utilities ───────────────────────────────────────────────
 

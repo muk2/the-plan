@@ -1,4 +1,8 @@
-use axum::{extract::{Path, Query, State}, http::StatusCode, Json};
+use axum::{
+    Json,
+    extract::{Path, Query, State},
+    http::StatusCode,
+};
 use chrono::Datelike;
 use sqlx::SqlitePool;
 
@@ -29,7 +33,11 @@ pub async fn get_progress(
             let now = chrono::Local::now().date_naive();
             let start = now.with_day(1).unwrap_or(now);
             let end = if now.month() == 12 {
-                start.with_year(now.year() + 1).unwrap().with_month(1).unwrap()
+                start
+                    .with_year(now.year() + 1)
+                    .unwrap()
+                    .with_month(1)
+                    .unwrap()
             } else {
                 start.with_month(now.month() + 1).unwrap()
             } - chrono::Duration::days(1);
@@ -60,7 +68,9 @@ pub async fn log_progress(
     AuthUser(user_id): AuthUser,
     Json(input): Json<ProgressLogInput>,
 ) -> Result<Json<ProgressLog>, (StatusCode, String)> {
-    let date = input.date.unwrap_or_else(|| chrono::Local::now().format("%Y-%m-%d").to_string());
+    let date = input
+        .date
+        .unwrap_or_else(|| chrono::Local::now().format("%Y-%m-%d").to_string());
 
     let log = sqlx::query_as::<_, ProgressLog>(
         "INSERT INTO progress_logs (user_id, category_name, date, hours, note) VALUES (?, ?, ?, ?, ?) RETURNING *"
@@ -83,8 +93,10 @@ pub async fn delete_progress(
     Path(log_id): Path<i64>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let result = sqlx::query("DELETE FROM progress_logs WHERE id = ? AND user_id = ?")
-        .bind(log_id).bind(user_id)
-        .execute(&pool).await
+        .bind(log_id)
+        .bind(user_id)
+        .execute(&pool)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
