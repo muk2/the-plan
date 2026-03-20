@@ -1,4 +1,8 @@
-use axum::{extract::{Query, State}, http::StatusCode, Json};
+use axum::{
+    Json,
+    extract::{Query, State},
+    http::StatusCode,
+};
 use chrono::Datelike;
 use sqlx::SqlitePool;
 
@@ -15,16 +19,24 @@ pub async fn get_leaderboard(
     AuthUser(user_id): AuthUser,
     Query(query): Query<LeaderboardQuery>,
 ) -> Result<Json<Vec<LeaderboardEntry>>, (StatusCode, String)> {
-    let friendships = sqlx::query_as::<_, Friendship>(
-        "SELECT * FROM friendships WHERE user_a = ? OR user_b = ?"
-    )
-    .bind(user_id).bind(user_id)
-    .fetch_all(&pool).await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let friendships =
+        sqlx::query_as::<_, Friendship>("SELECT * FROM friendships WHERE user_a = ? OR user_b = ?")
+            .bind(user_id)
+            .bind(user_id)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let mut user_ids: Vec<i64> = friendships.iter().map(|f| {
-        if f.user_a == user_id { f.user_b } else { f.user_a }
-    }).collect();
+    let mut user_ids: Vec<i64> = friendships
+        .iter()
+        .map(|f| {
+            if f.user_a == user_id {
+                f.user_b
+            } else {
+                f.user_a
+            }
+        })
+        .collect();
     user_ids.push(user_id);
 
     if user_ids.is_empty() {
@@ -50,8 +62,12 @@ pub async fn get_leaderboard(
 
     let users_query = format!("SELECT * FROM users WHERE id IN ({})", placeholders);
     let mut q = sqlx::query_as::<_, User>(&users_query);
-    for id in &user_ids { q = q.bind(id); }
-    let users: Vec<User> = q.fetch_all(&pool).await
+    for id in &user_ids {
+        q = q.bind(id);
+    }
+    let users: Vec<User> = q
+        .fetch_all(&pool)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Batch fetch all progress totals in one query
@@ -60,7 +76,9 @@ pub async fn get_leaderboard(
         placeholders
     );
     let mut q = sqlx::query_as::<_, (i64, f64)>(&totals_query);
-    for id in &user_ids { q = q.bind(id); }
+    for id in &user_ids {
+        q = q.bind(id);
+    }
     q = q.bind(&from_date).bind(&to_date);
     let totals: Vec<(i64, f64)> = q.fetch_all(&pool).await.unwrap_or_default();
     let totals_map: std::collections::HashMap<i64, f64> = totals.into_iter().collect();
@@ -71,12 +89,18 @@ pub async fn get_leaderboard(
         placeholders
     );
     let mut q = sqlx::query_as::<_, (i64, String, f64)>(&cats_query);
-    for id in &user_ids { q = q.bind(id); }
+    for id in &user_ids {
+        q = q.bind(id);
+    }
     q = q.bind(&from_date).bind(&to_date);
     let cat_rows: Vec<(i64, String, f64)> = q.fetch_all(&pool).await.unwrap_or_default();
-    let mut cats_map: std::collections::HashMap<i64, Vec<CategoryHours>> = std::collections::HashMap::new();
+    let mut cats_map: std::collections::HashMap<i64, Vec<CategoryHours>> =
+        std::collections::HashMap::new();
     for (uid, name, hours) in cat_rows {
-        cats_map.entry(uid).or_default().push(CategoryHours { category_name: name, hours });
+        cats_map.entry(uid).or_default().push(CategoryHours {
+            category_name: name,
+            hours,
+        });
     }
 
     // Batch fetch all streaks: get distinct dates for all users in one query
@@ -85,28 +109,41 @@ pub async fn get_leaderboard(
         placeholders
     );
     let mut q = sqlx::query_as::<_, (i64, String)>(&dates_query);
-    for id in &user_ids { q = q.bind(id); }
+    for id in &user_ids {
+        q = q.bind(id);
+    }
     let all_dates: Vec<(i64, String)> = q.fetch_all(&pool).await.unwrap_or_default();
-    let mut dates_map: std::collections::HashMap<i64, Vec<String>> = std::collections::HashMap::new();
+    let mut dates_map: std::collections::HashMap<i64, Vec<String>> =
+        std::collections::HashMap::new();
     for (uid, date) in all_dates {
         dates_map.entry(uid).or_default().push(date);
     }
 
     let today = chrono::Local::now().date_naive();
 
-    let mut entries: Vec<LeaderboardEntry> = users.into_iter().map(|user| {
-        let streak = calculate_streak_from_dates(dates_map.get(&user.id).map(|v| v.as_slice()).unwrap_or(&[]), today);
-        LeaderboardEntry {
-            user_id: user.id,
-            username: user.username,
-            display_name: user.display_name,
-            total_hours: *totals_map.get(&user.id).unwrap_or(&0.0),
-            streak_days: streak,
-            categories: cats_map.remove(&user.id).unwrap_or_default(),
-        }
-    }).collect();
+    let mut entries: Vec<LeaderboardEntry> = users
+        .into_iter()
+        .map(|user| {
+            let streak = calculate_streak_from_dates(
+                dates_map.get(&user.id).map(|v| v.as_slice()).unwrap_or(&[]),
+                today,
+            );
+            LeaderboardEntry {
+                user_id: user.id,
+                username: user.username,
+                display_name: user.display_name,
+                total_hours: *totals_map.get(&user.id).unwrap_or(&0.0),
+                streak_days: streak,
+                categories: cats_map.remove(&user.id).unwrap_or_default(),
+            }
+        })
+        .collect();
 
-    entries.sort_by(|a, b| b.total_hours.partial_cmp(&a.total_hours).unwrap_or(std::cmp::Ordering::Equal));
+    entries.sort_by(|a, b| {
+        b.total_hours
+            .partial_cmp(&a.total_hours)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     Ok(Json(entries))
 }

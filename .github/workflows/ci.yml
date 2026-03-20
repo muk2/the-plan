@@ -7,14 +7,16 @@ on:
     branches: [main]
 
 jobs:
-  build:
-    name: Build & Validate
+  backend:
+    name: Backend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -26,9 +28,23 @@ jobs:
           key: rust-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml') }}
           restore-keys: rust-
 
-      - name: Build backend
+      - name: Check formatting
+        working-directory: backend
+        run: cargo fmt -- --check
+
+      - name: Clippy lints
+        working-directory: backend
+        run: cargo clippy --release -- -D warnings
+
+      - name: Build
         working-directory: backend
         run: cargo build --release
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -39,15 +55,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: frontend/node_modules
-          key: node-${{ hashFiles('frontend/package.json') }}
+          key: node-${{ hashFiles('frontend/package-lock.json', 'frontend/package.json') }}
           restore-keys: node-
 
-      - name: Build frontend
+      - name: Install dependencies
         working-directory: frontend
-        run: |
-          npm install
-          npm run build
+        run: npm install
 
-      - name: Check for warnings
-        working-directory: backend
-        run: cargo build --release 2>&1 | grep -i warning || echo "No warnings"
+      - name: ESLint
+        working-directory: frontend
+        run: npx eslint . --max-warnings 2
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build

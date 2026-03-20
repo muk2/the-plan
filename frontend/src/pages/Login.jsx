@@ -19,7 +19,7 @@ export default function Login() {
   // Redirect if already logged in
   useEffect(() => {
     if (user) navigate(inviteCode ? `/invite/${inviteCode}` : "/");
-  }, [user]);
+  }, [user, navigate, inviteCode]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
