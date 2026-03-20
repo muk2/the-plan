@@ -3,14 +3,30 @@
 # Usage: theplan [start|stop|status|logs|rebuild]
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-PLIST_NAME="com.theplan.server"
-PLIST_PATH="$HOME/Library/LaunchAgents/${PLIST_NAME}.plist"
-PID_FILE="$PROJECT_DIR/.server.pid"
+DEPLOY_DIR="${DEPLOY_DIR:-$HOME/the-plan-deploy}"
+
+# Check both deploy dir (CI/CD) and project dir (manual) for PID
+if [ -f "$DEPLOY_DIR/.server.pid" ]; then
+  PID_FILE="$DEPLOY_DIR/.server.pid"
+  LOG_DIR="$DEPLOY_DIR/logs"
+elif [ -f "$PROJECT_DIR/.server.pid" ]; then
+  PID_FILE="$PROJECT_DIR/.server.pid"
+  LOG_DIR="$PROJECT_DIR/logs"
+else
+  PID_FILE="$PROJECT_DIR/.server.pid"
+  LOG_DIR="$PROJECT_DIR/logs"
+fi
 
 case "${1:-status}" in
   start)
     if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
       echo "Already running (PID $(cat "$PID_FILE"))"
+      exit 0
+    fi
+
+    # Also check deploy dir PID
+    if [ -f "$DEPLOY_DIR/.server.pid" ] && kill -0 "$(cat "$DEPLOY_DIR/.server.pid")" 2>/dev/null; then
+      echo "Already running via deploy (PID $(cat "$DEPLOY_DIR/.server.pid"))"
       exit 0
     fi
 
@@ -20,9 +36,11 @@ case "${1:-status}" in
       cd "$PROJECT_DIR" && make build
     fi
 
-    mkdir -p "$PROJECT_DIR/logs" "$PROJECT_DIR/backend/data"
+    PID_FILE="$PROJECT_DIR/.server.pid"
+    LOG_DIR="$PROJECT_DIR/logs"
+    mkdir -p "$LOG_DIR" "$PROJECT_DIR/backend/data"
     FRONTEND_DIR="$PROJECT_DIR/frontend/dist" \
-      nohup "$BINARY" >> "$PROJECT_DIR/logs/server.log" 2>&1 &
+      nohup "$BINARY" >> "$LOG_DIR/server.log" 2>&1 &
     echo $! > "$PID_FILE"
 
     sleep 1
@@ -33,23 +51,35 @@ case "${1:-status}" in
       echo "  Network:   http://${IP:-your-ip}:3000"
       echo "  Tailscale: http://$(hostname):3000"
     else
-      echo "Failed to start. Check logs/server.log"
+      echo "Failed to start. Check $LOG_DIR/server.log"
       rm -f "$PID_FILE"
       exit 1
     fi
     ;;
 
   stop)
-    if [ -f "$PID_FILE" ]; then
-      PID=$(cat "$PID_FILE")
+    stopped=false
+    # Stop deploy instance
+    if [ -f "$DEPLOY_DIR/.server.pid" ]; then
+      PID=$(cat "$DEPLOY_DIR/.server.pid")
       if kill -0 "$PID" 2>/dev/null; then
         kill "$PID"
-        echo "Stopped (PID $PID)"
-      else
-        echo "Process not running (stale PID file)"
+        echo "Stopped deploy instance (PID $PID)"
+        stopped=true
       fi
-      rm -f "$PID_FILE"
-    else
+      rm -f "$DEPLOY_DIR/.server.pid"
+    fi
+    # Stop manual instance
+    if [ -f "$PROJECT_DIR/.server.pid" ]; then
+      PID=$(cat "$PROJECT_DIR/.server.pid")
+      if kill -0 "$PID" 2>/dev/null; then
+        kill "$PID"
+        echo "Stopped manual instance (PID $PID)"
+        stopped=true
+      fi
+      rm -f "$PROJECT_DIR/.server.pid"
+    fi
+    if ! $stopped; then
       pkill -f the-plan-backend 2>/dev/null && echo "Stopped" || echo "Not running"
     fi
     ;;
@@ -61,15 +91,21 @@ case "${1:-status}" in
     ;;
 
   status)
-    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-      echo "Running (PID $(cat "$PID_FILE"))"
+    if [ -f "$DEPLOY_DIR/.server.pid" ] && kill -0 "$(cat "$DEPLOY_DIR/.server.pid")" 2>/dev/null; then
+      echo "Running via deploy (PID $(cat "$DEPLOY_DIR/.server.pid"))"
+    elif [ -f "$PROJECT_DIR/.server.pid" ] && kill -0 "$(cat "$PROJECT_DIR/.server.pid")" 2>/dev/null; then
+      echo "Running (PID $(cat "$PROJECT_DIR/.server.pid"))"
     else
       echo "Not running"
     fi
     ;;
 
   logs)
-    tail -f "$PROJECT_DIR/logs/server.log"
+    if [ -f "$DEPLOY_DIR/logs/server.log" ]; then
+      tail -f "$DEPLOY_DIR/logs/server.log"
+    else
+      tail -f "$PROJECT_DIR/logs/server.log"
+    fi
     ;;
 
   rebuild)

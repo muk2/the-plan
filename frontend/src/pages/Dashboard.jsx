@@ -78,10 +78,6 @@ export default function Dashboard() {
   const [autoWorkStart, setAutoWorkStart] = useState("09:00");
   const [autoWorkEnd, setAutoWorkEnd] = useState("17:00");
 
-  useEffect(() => {
-    loadAll();
-  }, []);
-
   const loadAll = () => {
     api.categories.list().then(setCategories).catch(() => {});
     api.schedules.list().then(setSchedules).catch(() => {});
@@ -92,6 +88,8 @@ export default function Dashboard() {
     api.budget.list().then(setBudgetItems).catch(() => {});
     api.progress.list({ range: "week" }).then(setProgressLogs).catch(() => {});
   };
+
+  useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const typeMeta = useMemo(() => {
     const m = {};
@@ -405,7 +403,7 @@ export default function Dashboard() {
             <button onClick={() => navigate("/friends")} style={S.btnSecondary}>Friends</button>
             <button onClick={() => navigate("/leaderboard")} style={S.btnSecondary}>Leaderboard</button>
             <button onClick={() => navigate("/profile")} style={S.btnSecondary}>Profile</button>
-            <button onClick={async () => { await logout(); navigate("/login"); }} style={{ ...S.btnSecondary, color: "#e55", borderColor: "#e5555544" }}>Logout</button>
+            <button onClick={() => logout()} style={{ ...S.btnSecondary, color: "#e55", borderColor: "#e5555544" }}>Logout</button>
           </div>
         </div>
         {/* Tabs */}
