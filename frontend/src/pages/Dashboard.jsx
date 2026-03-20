@@ -161,7 +161,7 @@ export default function Dashboard() {
       setSchedules(fresh);
       setQuickAdd({ time_range: "", label: "", category_name: categories.length > 0 ? categories[0].name : "", note: "" });
       setShowQuickAdd(false);
-    } catch (e) { setError(e.message); }
+    } catch (e) { alert(e.message); }
   };
 
   // ── Category CRUD ──
