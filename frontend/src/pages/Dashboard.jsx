@@ -9,6 +9,7 @@ import BudgetBar from "../components/BudgetBar";
 import TimeRangeInput from "../components/TimeRangeInput";
 import Modal from "../components/Modal";
 import ColorPicker from "../components/ColorPicker";
+import { sortBlocksByTime } from "../utils/timeParser";
 import * as api from "../api";
 import * as S from "../styles";
 
@@ -63,6 +64,8 @@ export default function Dashboard() {
   const [editBlocks, setEditBlocks] = useState([]);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAdd, setQuickAdd] = useState({ time_range: "", label: "", category_name: "", note: "" });
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
 
   // Category form
   const [catName, setCatName] = useState("");
@@ -156,7 +159,8 @@ export default function Dashboard() {
   const saveSchedule = async () => {
     setSaving(true); setError("");
     try {
-      await api.schedules.putDay({ day_of_week: schedDay, blocks: editBlocks });
+      const sorted = sortBlocksByTime(editBlocks);
+      await api.schedules.putDay({ day_of_week: schedDay, blocks: sorted });
       const fresh = await api.schedules.list();
       setSchedules(fresh);
       setEditing(false);
@@ -167,6 +171,38 @@ export default function Dashboard() {
   const addBlock = () => {
     const defaultCat = categories.length > 0 ? categories[0].name : "prog";
     setEditBlocks([...editBlocks, { time_range: "", label: "", category_name: defaultCat, note: "" }]);
+  };
+
+  const sortBlocks = () => {
+    setEditBlocks(sortBlocksByTime(editBlocks));
+  };
+
+  const handleDragStart = (idx) => {
+    setDragIdx(idx);
+  };
+
+  const handleDragOver = (e, idx) => {
+    e.preventDefault();
+    setDragOverIdx(idx);
+  };
+
+  const handleDrop = (idx) => {
+    if (dragIdx === null || dragIdx === idx) {
+      setDragIdx(null);
+      setDragOverIdx(null);
+      return;
+    }
+    const copy = [...editBlocks];
+    const [moved] = copy.splice(dragIdx, 1);
+    copy.splice(idx, 0, moved);
+    setEditBlocks(copy);
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragIdx(null);
+    setDragOverIdx(null);
   };
 
   const updateBlock = (idx, field, value) => {
@@ -183,7 +219,7 @@ export default function Dashboard() {
       time_range: s.time_range, label: s.label,
       category_name: s.category_name, note: s.note || "",
     }));
-    const newBlocks = [...existing, { ...quickAdd, note: quickAdd.note || "" }];
+    const newBlocks = sortBlocksByTime([...existing, { ...quickAdd, note: quickAdd.note || "" }]);
     try {
       await api.schedules.putDay({ day_of_week: schedDay, blocks: newBlocks });
       const fresh = await api.schedules.list();
@@ -609,11 +645,29 @@ export default function Dashboard() {
               /* Schedule Editor */
               <div>
                 {editBlocks.map((block, idx) => (
-                  <div key={idx} className="schedule-editor-row" style={{
-                    display: "flex", gap: 8, marginBottom: 6, alignItems: "center",
-                    padding: "8px 12px", background: COLORS.surface, borderRadius: 8,
-                    border: `1px solid ${COLORS.border}`,
-                  }}>
+                  <div
+                    key={idx}
+                    className="schedule-editor-row"
+                    draggable
+                    onDragStart={() => handleDragStart(idx)}
+                    onDragOver={(e) => handleDragOver(e, idx)}
+                    onDrop={() => handleDrop(idx)}
+                    onDragEnd={handleDragEnd}
+                    style={{
+                      display: "flex", gap: 8, marginBottom: 6, alignItems: "center",
+                      padding: "8px 12px", background: COLORS.surface, borderRadius: 8,
+                      border: `1px solid ${dragOverIdx === idx ? COLORS.accent : COLORS.border}`,
+                      opacity: dragIdx === idx ? 0.5 : 1,
+                      transition: "border-color 0.15s, opacity 0.15s",
+                    }}
+                  >
+                    <span
+                      style={{
+                        cursor: "grab", color: COLORS.textFaint, fontSize: 14,
+                        padding: "4px 2px", userSelect: "none", flexShrink: 0,
+                      }}
+                      title="Drag to reorder"
+                    >{"\u2630"}</span>
                     <TimeRangeInput value={block.time_range} onChange={v => updateBlock(idx, "time_range", v)} />
                     <input style={{ ...S.input, flex: 1 }} placeholder="Activity name" value={block.label} onChange={e => updateBlock(idx, "label", e.target.value)} />
                     <select style={{ ...S.select, width: 140 }} value={block.category_name} onChange={e => updateBlock(idx, "category_name", e.target.value)}>
@@ -623,7 +677,10 @@ export default function Dashboard() {
                     <button onClick={() => removeBlock(idx)} style={{ ...S.btnDanger, padding: "6px 10px", fontSize: 13, background: "transparent" }}>{"\u2715"}</button>
                   </div>
                 ))}
-                <button onClick={addBlock} style={{ ...S.btnSecondary, marginTop: 8, width: "100%", textAlign: "center" }}>+ Add Block</button>
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <button onClick={addBlock} style={{ ...S.btnSecondary, flex: 1, textAlign: "center" }}>+ Add Block</button>
+                  <button onClick={sortBlocks} style={{ ...S.btnSecondary, textAlign: "center" }} title="Sort blocks by start time">{"\u2195"} Sort by Time</button>
+                </div>
               </div>
             )}
           </div>
