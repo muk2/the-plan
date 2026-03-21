@@ -67,10 +67,14 @@ export default function TimeRangeInput({ value, onChange, style = {} }) {
     }
   };
 
+  const startParsed = parseFlexibleTime(startRaw);
+  const endParsed = parseFlexibleTime(endRaw);
+  const isInvalid = startParsed && endParsed && startParsed >= endParsed;
+
   const base = {
     padding: "8px 10px",
     background: COLORS.surface2,
-    border: `1px solid ${COLORS.border}`,
+    border: `1px solid ${isInvalid ? "#e55" : COLORS.border}`,
     borderRadius: 6,
     color: COLORS.text,
     fontSize: 13,
@@ -82,7 +86,7 @@ export default function TimeRangeInput({ value, onChange, style = {} }) {
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4, ...style }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 4, ...style, flexWrap: "wrap" }}>
       <input
         style={base}
         value={startRaw}
@@ -90,7 +94,7 @@ export default function TimeRangeInput({ value, onChange, style = {} }) {
         placeholder="6pm"
         maxLength={7}
         onFocus={e => e.target.style.borderColor = COLORS.accent}
-        onBlur={e => { e.target.style.borderColor = COLORS.border; handleBlur("start"); }}
+        onBlur={e => { e.target.style.borderColor = isInvalid ? "#e55" : COLORS.border; handleBlur("start"); }}
       />
       <span style={{ color: COLORS.textFaint, fontSize: 12, fontWeight: 600 }}>{"\u2013"}</span>
       <input
@@ -101,8 +105,11 @@ export default function TimeRangeInput({ value, onChange, style = {} }) {
         placeholder="7:30"
         maxLength={7}
         onFocus={e => e.target.style.borderColor = COLORS.accent}
-        onBlur={e => { e.target.style.borderColor = COLORS.border; handleBlur("end"); }}
+        onBlur={e => { e.target.style.borderColor = isInvalid ? "#e55" : COLORS.border; handleBlur("end"); }}
       />
+      {isInvalid && (
+        <span style={{ color: "#e55", fontSize: 10, width: "100%" }}>Start must be before end</span>
+      )}
     </div>
   );
 }
