@@ -16,7 +16,7 @@ export const COLORS = {
   omscs: "#555",
   text: "#e8e8e8",
   textDim: "#888",
-  textFaint: "#555",
+  textFaint: "#777",
 };
 
 export const DEFAULT_TYPE_META = {

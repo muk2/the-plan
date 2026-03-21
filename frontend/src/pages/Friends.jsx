@@ -8,6 +8,7 @@ export default function Friends() {
   const [friends, setFriends] = useState([]);
   const [inviteCode, setInviteCode] = useState("");
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     api.friends.list().then(setFriends).catch(() => {});
@@ -17,7 +18,7 @@ export default function Friends() {
     try {
       const res = await api.friends.createInvite();
       setInviteCode(res.code);
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
   };
 
   const copyLink = () => {
@@ -32,7 +33,7 @@ export default function Friends() {
     try {
       await api.friends.remove(id);
       setFriends(friends.filter(f => f.friendship_id !== id));
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
   };
 
   const btnStyle = {
@@ -61,6 +62,18 @@ export default function Friends() {
         </button>
         <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Friends</h1>
       </div>
+
+      {error && (
+        <div style={{
+          marginBottom: 16, padding: "12px 16px", background: "#3a1111",
+          border: "1px solid #e5555544", borderRadius: 8, color: "#e55",
+          fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center",
+          maxWidth: 500,
+        }}>
+          <span>{error}</span>
+          <button onClick={() => setError("")} style={{ background: "none", border: "none", color: "#e55", cursor: "pointer", fontSize: 16, fontFamily: "inherit" }}>&times;</button>
+        </div>
+      )}
 
       {/* Invite Section */}
       <div style={{ marginBottom: 32, padding: "16px", background: COLORS.surface, borderRadius: 8, border: `1px solid ${COLORS.border}`, maxWidth: 500 }}>
