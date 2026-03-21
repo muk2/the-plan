@@ -2,6 +2,7 @@ pub mod ai;
 pub mod auth;
 pub mod budget;
 pub mod categories;
+pub mod export;
 pub mod friends;
 pub mod leaderboard;
 pub mod progress;

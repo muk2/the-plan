@@ -91,3 +91,8 @@ export const budget = {
   list: () => request("/budget"),
   set: (items) => request("/budget", { method: "PUT", body: JSON.stringify(items) }),
 };
+
+// Export
+export const dataExport = {
+  get: () => request("/export"),
+};

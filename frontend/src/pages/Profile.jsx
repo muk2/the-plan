@@ -116,6 +116,7 @@ export default function Profile() {
   const [aiModel, setAiModel] = useState(user?.ai_model || "");
   const [aiBaseUrl, setAiBaseUrl] = useState(user?.ai_base_url || "");
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
 
@@ -309,6 +310,34 @@ export default function Profile() {
             Select a provider above to configure AI analysis.
           </div>
         )}
+      </div>
+
+      {/* Data Export Section */}
+      <div style={{ maxWidth: 500, marginTop: 40 }}>
+        <div style={{ color: COLORS.accent, fontSize: 11, fontFamily: "'IBM Plex Mono', monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 }}>Data Export</div>
+        <p style={{ color: COLORS.textDim, fontSize: 13, marginBottom: 16, lineHeight: 1.6 }}>
+          Download all your data as a JSON file. Includes schedules, progressions, progress logs, categories, and budget.
+        </p>
+        <button
+          onClick={async () => {
+            setExporting(true); setError("");
+            try {
+              const data = await api.dataExport.get();
+              const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `the-plan-export-${new Date().toISOString().slice(0, 10)}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            } catch (e) { setError(e.message); }
+            finally { setExporting(false); }
+          }}
+          disabled={exporting}
+          style={{ ...btnStyle, opacity: exporting ? 0.6 : 1 }}
+        >
+          {exporting ? "Exporting..." : "Export All Data (JSON)"}
+        </button>
       </div>
     </div>
   );
