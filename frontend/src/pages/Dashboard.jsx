@@ -59,6 +59,14 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Pagination for progress logs
+  const [logView, setLogView] = useState("week"); // "week" or "all"
+  const [allLogs, setAllLogs] = useState([]);
+  const [allLogsOffset, setAllLogsOffset] = useState(0);
+  const [hasMoreLogs, setHasMoreLogs] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const LOG_PAGE_SIZE = 50;
+
   // Schedule editor
   const [editing, setEditing] = useState(false);
   const [editBlocks, setEditBlocks] = useState([]);
@@ -120,6 +128,28 @@ export default function Dashboard() {
   };
 
   useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadAllLogs = async (reset = true) => {
+    setLoadingMore(true);
+    try {
+      const offset = reset ? 0 : allLogsOffset;
+      const logs = await api.progress.list({ limit: LOG_PAGE_SIZE, offset });
+      if (reset) {
+        setAllLogs(logs);
+        setAllLogsOffset(logs.length);
+      } else {
+        setAllLogs(prev => [...prev, ...logs]);
+        setAllLogsOffset(offset + logs.length);
+      }
+      setHasMoreLogs(logs.length === LOG_PAGE_SIZE);
+    } catch { /* ignore */ }
+    finally { setLoadingMore(false); }
+  };
+
+  const switchLogView = (view) => {
+    setLogView(view);
+    if (view === "all" && allLogs.length === 0) loadAllLogs(true);
+  };
 
   const typeMeta = useMemo(() => {
     const m = {};
@@ -769,14 +799,27 @@ export default function Dashboard() {
               </form>
             </div>
 
-            {/* Log history */}
-            {progressLogs.length === 0 ? (
+            {/* Log history toggle */}
+            <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+              {[["week", "This Week"], ["all", "All History"]].map(([v, label]) => (
+                <button key={v} onClick={() => switchLogView(v)} style={{
+                  padding: "6px 14px",
+                  background: logView === v ? COLORS.accent : COLORS.surface2,
+                  color: logView === v ? COLORS.bg : COLORS.textDim,
+                  border: "none", borderRadius: 6, fontSize: 12,
+                  fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                }}>{label}</button>
+              ))}
+            </div>
+
+            {/* Log entries */}
+            {(logView === "week" ? progressLogs : allLogs).length === 0 ? (
               <div style={{ ...S.card, textAlign: "center", padding: 40 }}>
                 <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.5 }}>{"\u270F\uFE0F"}</div>
-                <div style={{ color: COLORS.textDim, fontSize: 14 }}>No progress logged this week.</div>
+                <div style={{ color: COLORS.textDim, fontSize: 14 }}>{logView === "week" ? "No progress logged this week." : "No progress logs yet."}</div>
               </div>
             ) : (
-              progressLogs.map((log, i) => {
+              (logView === "week" ? progressLogs : allLogs).map((log, i) => {
                 const meta = typeMeta[log.category_name] || { color: "#555", label: log.category_name };
                 return (
                   <div key={log.id || i} className="progress-log-row" style={{
@@ -791,17 +834,30 @@ export default function Dashboard() {
                     <span style={{ color: COLORS.accent, fontFamily: "'IBM Plex Mono', monospace", fontSize: 14, fontWeight: 700, minWidth: 44 }}>{log.hours}h</span>
                     {log.note && <span style={{ color: COLORS.textDim, fontSize: 12, flex: 1 }}>{log.note}</span>}
                     <button onClick={() => {
-                      const prevLogs = [...progressLogs];
-                      setProgressLogs(progressLogs.filter(l => l.id !== log.id));
+                      const currentLogs = logView === "week" ? progressLogs : allLogs;
+                      const setCurrentLogs = logView === "week" ? setProgressLogs : setAllLogs;
+                      const prevLogs = [...currentLogs];
+                      setCurrentLogs(currentLogs.filter(l => l.id !== log.id));
                       showUndoToast(
                         `Removed ${log.hours}h ${(typeMeta[log.category_name] || {}).label || log.category_name}`,
-                        () => setProgressLogs(prevLogs),
+                        () => setCurrentLogs(prevLogs),
                         async () => { try { await api.progress.remove(log.id); } catch { /* ok */ } }
                       );
                     }} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", fontSize: 16, padding: 4, opacity: 0.5 }}>{"\u2715"}</button>
                   </div>
                 );
               })
+            )}
+
+            {/* Load more button for "all" view */}
+            {logView === "all" && hasMoreLogs && allLogs.length > 0 && (
+              <button
+                onClick={() => loadAllLogs(false)}
+                disabled={loadingMore}
+                style={{ ...S.btn, width: "100%", marginTop: 12, opacity: loadingMore ? 0.6 : 1 }}
+              >
+                {loadingMore ? "Loading..." : "Load More"}
+              </button>
             )}
           </div>
         )}
