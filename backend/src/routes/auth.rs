@@ -17,10 +17,16 @@ pub async fn signup(
             "Username must be 2-32 characters".into(),
         ));
     }
-    if input.password.len() < 6 {
+    if input.password.len() < 8 {
         return Err((
             StatusCode::BAD_REQUEST,
-            "Password must be at least 6 characters".into(),
+            "Password must be at least 8 characters".into(),
+        ));
+    }
+    if !input.password.chars().any(|c| c.is_ascii_digit()) || !input.password.chars().any(|c| c.is_alphabetic()) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Password must contain both letters and numbers".into(),
         ));
     }
 

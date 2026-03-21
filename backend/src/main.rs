@@ -9,6 +9,7 @@ use axum::{
     Router,
     routing::{delete, get, post, put},
 };
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
 #[tokio::main]
@@ -107,8 +108,15 @@ async fn main() {
     let frontend_dir =
         std::env::var("FRONTEND_DIR").unwrap_or_else(|_| "../frontend/dist".to_string());
 
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any)
+        .allow_credentials(false);
+
     let app = Router::new()
         .nest("/api", api)
+        .layer(cors)
         .fallback_service(ServeDir::new(&frontend_dir).fallback(
             tower_http::services::ServeFile::new(format!("{}/index.html", frontend_dir)),
         ))

@@ -53,9 +53,13 @@ pub async fn delete_session(pool: &SqlitePool, token: &str) {
 }
 
 pub fn set_session_cookie(jar: CookieJar, token: &str) -> CookieJar {
+    let is_secure = std::env::var("SECURE_COOKIES")
+        .map(|v| v != "0" && v.to_lowercase() != "false")
+        .unwrap_or(true);
     let cookie = Cookie::build((SESSION_COOKIE, token.to_string()))
         .path("/")
         .http_only(true)
+        .secure(is_secure)
         .same_site(axum_extra::extract::cookie::SameSite::Lax)
         .max_age(time::Duration::days(30))
         .build();
