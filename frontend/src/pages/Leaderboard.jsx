@@ -5,17 +5,23 @@ import { COLORS } from "../theme";
 import Tag from "../components/Tag";
 import * as api from "../api";
 
+const PAGE_SIZE = 20;
+
 export default function Leaderboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [entries, setEntries] = useState([]);
   const [period, setPeriod] = useState("week");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
     api.leaderboard.get(period).then(setEntries).catch(() => {});
   }, [period]);
 
   const medals = ["\u{1F947}", "\u{1F948}", "\u{1F949}"];
+  const visibleEntries = entries.slice(0, visibleCount);
+  const hasMore = visibleCount < entries.length;
 
   return (
     <div style={{
@@ -55,7 +61,7 @@ export default function Leaderboard() {
         </div>
       )}
 
-      {entries.map((entry, i) => {
+      {visibleEntries.map((entry, i) => {
         const isMe = entry.user_id === user?.id;
         return (
           <div key={entry.user_id} style={{
@@ -112,6 +118,18 @@ export default function Leaderboard() {
           </div>
         );
       })}
+
+      {hasMore && (
+        <button onClick={() => setVisibleCount(c => c + PAGE_SIZE)} style={{
+          width: "100%", padding: "12px", marginTop: 8,
+          background: COLORS.surface, border: `1px solid ${COLORS.border}`,
+          borderRadius: 8, color: COLORS.textDim, fontSize: 13,
+          cursor: "pointer", fontFamily: "inherit",
+          fontWeight: 600,
+        }}>
+          Load More ({entries.length - visibleCount} remaining)
+        </button>
+      )}
     </div>
   );
 }
