@@ -117,14 +117,15 @@ export default function Dashboard() {
 
 
   const loadAll = () => {
-    api.categories.list().then(setCategories).catch(() => {});
-    api.schedules.list().then(setSchedules).catch(() => {});
+    const handleErr = (e) => setError(e.message);
+    api.categories.list().then(setCategories).catch(handleErr);
+    api.schedules.list().then(setSchedules).catch(handleErr);
     api.progressions.list().then(p => {
       setProgressions(p);
       if (p.length > 0 && !progTab) setProgTab(p[0].name);
-    }).catch(() => {});
-    api.budget.list().then(setBudgetItems).catch(() => {});
-    api.progress.list({ range: "week" }).then(setProgressLogs).catch(() => {});
+    }).catch(handleErr);
+    api.budget.list().then(setBudgetItems).catch(handleErr);
+    api.progress.list({ range: "week" }).then(setProgressLogs).catch(handleErr);
   };
 
   useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -256,7 +257,7 @@ export default function Dashboard() {
       setSchedules(fresh);
       setQuickAdd({ time_range: "", label: "", category_name: categories.length > 0 ? categories[0].name : "", note: "" });
       setShowQuickAdd(false);
-    } catch (e) { alert(e.message); }
+    } catch (e) { setError(e.message); }
   };
 
   // ── Category CRUD ──
@@ -465,7 +466,7 @@ export default function Dashboard() {
 
   const previewAutoSchedule = () => {
     const active = autoActivities.filter(a => a.enabled);
-    if (active.length === 0) return alert("Select at least one activity");
+    if (active.length === 0) { setError("Select at least one activity"); return; }
     const blocks = buildAutoScheduleBlocks();
     if (blocks) {
       setAutoPreview(blocks);
@@ -475,16 +476,24 @@ export default function Dashboard() {
 
   const applyAutoSchedule = async () => {
     if (!autoPreview) return;
-    for (let day = 0; day < 7; day++) {
-      try {
-        await api.schedules.putDay({ day_of_week: day, blocks: autoPreview[day] });
-      } catch (e) { console.error(e); }
-    }
-    const fresh = await api.schedules.list();
-    setSchedules(fresh);
-    setAutoPreview(null);
-    setShowAutoSchedule(false);
-    setSaving(false);
+    setSaving(true);
+    setError("");
+    try {
+      const errors = [];
+      for (let day = 0; day < 7; day++) {
+        try {
+          await api.schedules.putDay({ day_of_week: day, blocks: autoPreview[day] });
+        } catch (e) { errors.push(`${DAY_NAMES[day]}: ${e.message}`); }
+      }
+      if (errors.length > 0) {
+        setError(`Failed to save: ${errors.join(", ")}`);
+      }
+      const fresh = await api.schedules.list();
+      setSchedules(fresh);
+      setAutoPreview(null);
+      setShowAutoSchedule(false);
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
   // ── Log Progress ──
