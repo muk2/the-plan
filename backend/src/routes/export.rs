@@ -26,13 +26,12 @@ pub async fn export_data(
     State(pool): State<SqlitePool>,
     AuthUser(user_id): AuthUser,
 ) -> Result<Json<ExportData>, (StatusCode, String)> {
-    let categories = sqlx::query_as::<_, Category>(
-        "SELECT * FROM categories WHERE user_id = ? ORDER BY name",
-    )
-    .bind(user_id)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let categories =
+        sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE user_id = ? ORDER BY name")
+            .bind(user_id)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let schedules = sqlx::query_as::<_, ScheduleBlock>(
         "SELECT * FROM schedule_blocks WHERE user_id = ? ORDER BY day_of_week, sort_order",
