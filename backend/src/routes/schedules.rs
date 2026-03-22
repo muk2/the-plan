@@ -123,10 +123,7 @@ fn validate_time_range(time_range: &str) -> Result<(), (StatusCode, String)> {
                 if s >= e {
                     return Err((
                         StatusCode::BAD_REQUEST,
-                        format!(
-                            "Start time ({}) must be before end time ({})",
-                            start, end
-                        ),
+                        format!("Start time ({}) must be before end time ({})", start, end),
                     ));
                 }
             }
