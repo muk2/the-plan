@@ -10,7 +10,10 @@ export default function PhaseCard({ phase, langColor }) {
   return (
     <div style={{ border: `1px solid ${langColor}33`, borderRadius: 8, marginBottom: 12, overflow: "hidden" }}>
       <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen(o => !o)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(o => !o); } }}
         style={{
           background: `${langColor}18`,
           padding: "12px 16px",
