@@ -14,8 +14,12 @@ export default function Leaderboard() {
   const [period, setPeriod] = useState("week");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  useEffect(() => {
+  const changePeriod = (p) => {
+    setPeriod(p);
     setVisibleCount(PAGE_SIZE);
+  };
+
+  useEffect(() => {
     api.leaderboard.get(period).then(setEntries).catch(() => {});
   }, [period]);
 
@@ -39,7 +43,7 @@ export default function Leaderboard() {
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 4 }}>
           {["week", "month"].map(p => (
-            <button key={p} onClick={() => setPeriod(p)} style={{
+            <button key={p} onClick={() => changePeriod(p)} style={{
               padding: "6px 14px",
               background: period === p ? COLORS.accent : COLORS.surface2,
               color: period === p ? COLORS.bg : COLORS.textDim,
