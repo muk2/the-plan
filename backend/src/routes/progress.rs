@@ -14,6 +14,8 @@ pub struct ProgressQuery {
     pub range: Option<String>,
     pub from: Option<String>,
     pub to: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 pub async fn get_progress(
@@ -50,12 +52,17 @@ pub async fn get_progress(
         }
     };
 
+    let limit = query.limit.unwrap_or(500).min(500);
+    let offset = query.offset.unwrap_or(0).max(0);
+
     let logs = sqlx::query_as::<_, ProgressLog>(
-        "SELECT * FROM progress_logs WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date DESC, created_at DESC"
+        "SELECT * FROM progress_logs WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date DESC, created_at DESC LIMIT ? OFFSET ?"
     )
     .bind(user_id)
     .bind(&from)
     .bind(&to)
+    .bind(limit)
+    .bind(offset)
     .fetch_all(&pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
