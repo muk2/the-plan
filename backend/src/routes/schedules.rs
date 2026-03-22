@@ -111,7 +111,35 @@ fn validate_time_range(time_range: &str) -> Result<(), (StatusCode, String)> {
             ));
         }
     }
+
+    // Validate start < end for ranges
+    if parts.len() == 2 {
+        let start = parts[0].trim();
+        let end = parts[1].trim();
+        if !start.is_empty() && !end.is_empty() {
+            let start_mins = parse_time_minutes(start);
+            let end_mins = parse_time_minutes(end);
+            if let (Some(s), Some(e)) = (start_mins, end_mins)
+                && s >= e
+            {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    format!("Start time ({}) must be before end time ({})", start, end),
+                ));
+            }
+        }
+    }
     Ok(())
+}
+
+fn parse_time_minutes(time: &str) -> Option<u32> {
+    let parts: Vec<&str> = time.split(':').collect();
+    if parts.len() != 2 {
+        return None;
+    }
+    let h: u32 = parts[0].parse().ok()?;
+    let m: u32 = parts[1].parse().ok()?;
+    Some(h * 60 + m)
 }
 
 pub async fn get_user_schedules(
