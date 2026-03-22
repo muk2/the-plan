@@ -3,8 +3,12 @@ use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use sha2::{Digest, Sha256};
 
 fn derive_key() -> [u8; 32] {
-    let secret = std::env::var("THEPLAN_SECRET_KEY")
-        .unwrap_or_else(|_| "default-dev-key-change-in-production".to_string());
+    let secret = std::env::var("THEPLAN_SECRET_KEY").unwrap_or_else(|_| {
+        tracing::warn!(
+            "THEPLAN_SECRET_KEY not set! Using insecure default. Set this in production."
+        );
+        "default-dev-key-do-not-use-in-production".to_string()
+    });
     let mut hasher = Sha256::new();
     hasher.update(secret.as_bytes());
     hasher.finalize().into()
