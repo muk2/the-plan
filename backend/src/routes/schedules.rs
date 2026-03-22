@@ -119,13 +119,13 @@ fn validate_time_range(time_range: &str) -> Result<(), (StatusCode, String)> {
         if !start.is_empty() && !end.is_empty() {
             let start_mins = parse_time_minutes(start);
             let end_mins = parse_time_minutes(end);
-            if let (Some(s), Some(e)) = (start_mins, end_mins) {
-                if s >= e {
-                    return Err((
-                        StatusCode::BAD_REQUEST,
-                        format!("Start time ({}) must be before end time ({})", start, end),
-                    ));
-                }
+            if let (Some(s), Some(e)) = (start_mins, end_mins)
+                && s >= e
+            {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    format!("Start time ({}) must be before end time ({})", start, end),
+                ));
             }
         }
     }
