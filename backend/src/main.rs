@@ -103,7 +103,9 @@ async fn main() {
         .route("/ai/analyze", post(routes::ai::analyze))
         // Budget
         .route("/budget", get(routes::budget::get_budget))
-        .route("/budget", put(routes::budget::set_budget));
+        .route("/budget", put(routes::budget::set_budget))
+        // Export
+        .route("/export", get(routes::export::export_data));
 
     // Serve frontend static files, fallback to index.html for SPA routing
     let frontend_dir =
