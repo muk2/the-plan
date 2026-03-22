@@ -11,6 +11,12 @@ pub async fn signup(
     jar: CookieJar,
     Json(input): Json<SignupRequest>,
 ) -> Result<(CookieJar, Json<UserPublic>), (StatusCode, String)> {
+    if !crate::rate_limit::SIGNUP_LIMITER.check(&input.username) {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            "Too many signup attempts. Please try again in a minute.".into(),
+        ));
+    }
     if input.username.len() < 2 || input.username.len() > 32 {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -69,6 +75,12 @@ pub async fn login(
     jar: CookieJar,
     Json(input): Json<LoginRequest>,
 ) -> Result<(CookieJar, Json<UserPublic>), (StatusCode, String)> {
+    if !crate::rate_limit::LOGIN_LIMITER.check(&input.username) {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            "Too many login attempts. Please try again in a minute.".into(),
+        ));
+    }
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE username = ?")
         .bind(&input.username)
         .fetch_optional(&pool)

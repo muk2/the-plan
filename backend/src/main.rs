@@ -2,6 +2,7 @@ mod auth;
 mod crypto;
 mod db;
 mod models;
+mod rate_limit;
 mod routes;
 mod session;
 
