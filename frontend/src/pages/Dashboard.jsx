@@ -394,7 +394,6 @@ export default function Dashboard() {
     const active = autoActivities.filter(a => a.enabled);
     if (active.length === 0) { setError("Select at least one activity"); return null; }
 
-    setSaving(true); setError("");
     const parseTime = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + (m || 0); };
     const formatTime = (mins) => { const h = Math.floor(mins / 60); const m = mins % 60; return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`; };
 
