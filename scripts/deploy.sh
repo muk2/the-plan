@@ -70,6 +70,7 @@ cp -r "$FRONTEND" "$DEPLOY_DIR/frontend/dist"
 echo "Starting server..."
 DATABASE_PATH="$DATA_DIR/theplan.db" \
   FRONTEND_DIR="$DEPLOY_DIR/frontend/dist" \
+  SECURE_COOKIES=false \
   PORT=3000 \
   nohup "$DEPLOY_DIR/bin/the-plan-backend" >> "$LOG_DIR/server.log" 2>&1 &
 SERVER_PID=$!
